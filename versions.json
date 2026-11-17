@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "avalanchego": {
+    "revision": "70bd6d063b7343fd2cd8217200aaf77b57f19f68",
+    "release": "v1.15.0",
+    "patch": "scripts/patch-avalanche.py"
+  },
+  "subnet_evm": {
+    "source": "avalanchego/graft/subnet-evm",
+    "revision": "70bd6d063b7343fd2cd8217200aaf77b57f19f68"
+  },
+  "icm_services": {
+    "revision": "10923ff3dfa0f1bc3df3704aac8789bed1198b2a"
+  },
+  "kurtosis": "1.18.2",
+  "go": "1.27.1",
+  "foundry": "1.8.3",
+  "certified": [],
+  "prometheus": "prom/prometheus@sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62",
+  "solc": "0.8.30",
+  "verified_experiments": [
+    "local-poa-manager",
+    "native-pos-admission",
+    "erc20-pos-admission",
+    "two-l1-distinct-fleets",
+    "native-transfer-accounting-100",
+    "validator-pause",
+    "controller-termination-watchdog",
+    "primary-validator-pause-15s"
+  ]
+}

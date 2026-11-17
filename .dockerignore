@@ -1,0 +1,11 @@
+*
+!.build/
+.build/*
+!.build/bin/
+!.build/bin/lab
+!.build/bin/avalanchego
+!.build/bin/subnet-evm
+!.build/bin/signature-aggregator
+!.build/bin/icm-relayer
+!licenses/
+!licenses/**
