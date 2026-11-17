@@ -1,0 +1,6 @@
+.build/
+artifacts/
+contracts/out/
+contracts/cache/
+__pycache__/
+*.pyc

@@ -1,0 +1,23 @@
+{
+  "api-admin-enabled": "true",
+  "chain-config-dir": "/config/chains",
+  "data-dir": "/data",
+  "health-check-frequency": "2s",
+  "helicon-min-stake-duration": "1s",
+  "http-host": "0.0.0.0",
+  "http-port": "9650",
+  "index-enabled": "true",
+  "min-stake-duration": "2s",
+  "network-id": "88888",
+  "network-max-reconnect-delay": "1s",
+  "network-peer-list-pull-gossip-frequency": "250ms",
+  "plugin-dir": "/opt/avalanche/plugins",
+  "proposervm-use-current-height": "true",
+  "staking-port": "9651",
+  "staking-signer-key-file-content": "czrJrZ4zSJv1xv7co0C3yOGlTz8zwooTRdav7Uix+1k=",
+  "staking-tls-cert-file-content": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJFRENCdDZBREFnRUNBZ0VBTUFvR0NDcUdTTTQ5QkFNQ01BQXdJQmNOT1RreE1qTXhNREF3TURBd1doZ1AKTWpFeU5qRXhNVGN3TWpJd05UTmFNQUF3V1RBVEJnY3Foa2pPUFFJQkJnZ3Foa2pPUFFNQkJ3TkNBQVFlenVLWApBSDU4UVVTZTA1WWxOaytLM0RMZkhxZ3BtNFMyQ1hYRjRJN0libDZlZWFBS045R3dUWlhONUF0VWhtSEVTbFkyCkxhcE9mL1IrNytESitZN2RveUF3SGpBT0JnTlZIUThCQWY4RUJBTUNCNEF3REFZRFZSMFRBUUgvQkFJd0FEQUsKQmdncWhrak9QUVFEQWdOSUFEQkZBaUFvNGdwRDBGMG5iSFhXcVFYWmU5cjZBVXVoUXFWZkZZK3dEMUllNDdKZwoxUUloQUtWNzJKcVA1Qm0xS3lrclNkWThDSzhuRDV0K2ZZczV1azlKaHpBeURWQkEKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=",
+  "staking-tls-key-file-content": "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZ0dEZ0hZUUN4ajQvOVpTYm8Kb0VkZkF3RXI0dEpkdzFoYXRpU2trdUM2YTVPaFJBTkNBQVFlenVLWEFINThRVVNlMDVZbE5rK0szRExmSHFncAptNFMyQ1hYRjRJN0libDZlZWFBS045R3dUWlhONUF0VWhtSEVTbFkyTGFwT2YvUis3K0RKK1k3ZAotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==",
+  "system-tracker-disk-required-available-space-percentage": "0",
+  "system-tracker-disk-warning-available-space-percentage": "0",
+  "upgrade-file-content": "eyJhcHJpY290UGhhc2UxVGltZSI6IjIwMjAtMTItMDVUMDU6MDA6MDBaIiwiYXByaWNvdFBoYXNlMlRpbWUiOiIyMDIwLTEyLTA1VDA1OjAwOjAwWiIsImFwcmljb3RQaGFzZTNUaW1lIjoiMjAyMC0xMi0wNVQwNTowMDowMFoiLCJhcHJpY290UGhhc2U0VGltZSI6IjIwMjAtMTItMDVUMDU6MDA6MDBaIiwiYXByaWNvdFBoYXNlNE1pblBDaGFpbkhlaWdodCI6MCwiYXByaWNvdFBoYXNlNVRpbWUiOiIyMDIwLTEyLTA1VDA1OjAwOjAwWiIsImFwcmljb3RQaGFzZVByZTZUaW1lIjoiMjAyMC0xMi0wNVQwNTowMDowMFoiLCJhcHJpY290UGhhc2U2VGltZSI6IjIwMjAtMTItMDVUMDU6MDA6MDBaIiwiYXByaWNvdFBoYXNlUG9zdDZUaW1lIjoiMjAyMC0xMi0wNVQwNTowMDowMFoiLCJiYW5mZlRpbWUiOiIyMDIwLTEyLTA1VDA1OjAwOjAwWiIsImNvcnRpbmFUaW1lIjoiMjAyMC0xMi0wNVQwNTowMDowMFoiLCJjb3J0aW5hWENoYWluU3RvcFZlcnRleElEIjoiMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTFMcG9ZWSIsImR1cmFuZ29UaW1lIjoiMjAyMC0xMi0wNVQwNTowMDowMFoiLCJldG5hVGltZSI6IjIwMjAtMTItMDVUMDU6MDA6MDBaIiwiZm9ydHVuYVRpbWUiOiIyMDIwLTEyLTA1VDA1OjAwOjAwWiIsImdyYW5pdGVUaW1lIjoiMjAyMC0xMi0wNVQwNTowMDowMFoiLCJncmFuaXRlRXBvY2hEdXJhdGlvbiI6NDAwMDAwMDAwMCwiaGVsaWNvblRpbWUiOiIyMDIwLTEyLTA1VDA1OjAwOjAwWiJ9"
+}

@@ -1,0 +1,68 @@
+{
+  "networkID": 88888,
+  "allocations": [
+    {
+      "ethAddr": "0x0000000000000000000000000000000000000000",
+      "avaxAddr": "X-custom1ayp2n2rxgzlak8xsudkqejvzhql9we06r26mwl",
+      "initialAmount": 0,
+      "unlockSchedule": [
+        {
+          "amount": 3000000000000000,
+          "locktime": 1780604800
+        }
+      ]
+    },
+    {
+      "ethAddr": "0x0000000000000000000000000000000000000000",
+      "avaxAddr": "X-custom18jma8ppw3nhx5r4ap8clazz0dps7rv5u9xde7p",
+      "initialAmount": 30000000000000000,
+      "unlockSchedule": [
+        {
+          "amount": 20000000000000000,
+          "locktime": 0
+        },
+        {
+          "amount": 3000000000000000,
+          "locktime": 1780604800
+        }
+      ]
+    }
+  ],
+  "startTime": 1780000000,
+  "initialStakeDuration": 315360000,
+  "initialStakeDurationOffset": 5400,
+  "initialStakedFunds": [
+    "X-custom1ayp2n2rxgzlak8xsudkqejvzhql9we06r26mwl"
+  ],
+  "initialStakers": [
+    {
+      "nodeID": "NodeID-F4hNo8PSqC1y4M9Jmd4AfK2C1kZBe2CGT",
+      "rewardAddress": "X-custom1859dz2uwazfgahey3j53ef2kqrans0c8lah5pq",
+      "delegationFee": 10000,
+      "signer": {
+        "publicKey": "0x96e8c1df202e1dac7955ffe5ed1eb96713ed3d67a6df054f991b85ad48721b599043294cdc277c808046a3349efca042",
+        "proofOfPossession": "0xb2de052a70783ae45934a40236c7c048b577d1cd16ba378f41afeeac1b85493defd1f952c7a2c945ef1fc95d2b5908b80a93c9ffa5415dcecddce63a2878f0a3724778d538f952f17a4f21c8100bb9a4910b5bab0f4b44f5bc6e57f040afeac5"
+      }
+    },
+    {
+      "nodeID": "NodeID-2hsXJjLX3Xo7vyHzNJrPsqHBF5fnSQngo",
+      "rewardAddress": "X-custom1859dz2uwazfgahey3j53ef2kqrans0c8lah5pq",
+      "delegationFee": 10000,
+      "signer": {
+        "publicKey": "0x8e3f1fa8fe0d27e0fae21ebb1d8106ca17b4dcc4b095b638e82a602ff2d2c02a4d260e4f00e775e8b20ce96f66121892",
+        "proofOfPossession": "0x991026af42ec702cb5697c57a34be4fec9bf07d7336605e5fbeaa51ce2649245be27587e39ee182bc83828d3f4ebc501141097a15fc1c90f3c43091f0c8d332f7412f407a2c75ed28cfd4f8ee51865647eef37234792d0a6989b9fc47aad67e7"
+      }
+    },
+    {
+      "nodeID": "NodeID-Cd91vCyLY2gVXw2f9HXbAhxm6v2qtNeTt",
+      "rewardAddress": "X-custom1859dz2uwazfgahey3j53ef2kqrans0c8lah5pq",
+      "delegationFee": 10000,
+      "signer": {
+        "publicKey": "0x8e8b9b860c447933530eb921c14ce17d54aa3c83397ab78510765224620e90f7e2162dcc55e43d8968c95c27c255f147",
+        "proofOfPossession": "0x8f21afa508808030ac5bfe34935e9e41cbe771ff6a565c6f8e382c89476ef1c7403446053862ce9cabf7e1ea591d7f3301c37506a62060e7f16cb948a30217ce9b0f5e4faa8e87d2e1804f9507adab37912faeba863374887e655baa25b2478d"
+      }
+    }
+  ],
+  "cChainGenesis": "{\"config\":{\"chainId\":88888},\"nonce\":\"0x0\",\"timestamp\":\"0x5fcb13d0\",\"extraData\":\"0x\",\"gasLimit\":\"0x5f5e100\",\"difficulty\":\"0x0\",\"mixHash\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"coinbase\":\"0x0000000000000000000000000000000000000000\",\"alloc\":{\"8db97c7cece249c2b98bdc0226cc4c2a57bf52fc\":{\"balance\":\"0xc9f2c9cd04674edea40000000\"}},\"number\":\"0x0\",\"gasUsed\":\"0x0\",\"parentHash\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"baseFeePerGas\":null,\"excessBlobGas\":null,\"blobGasUsed\":null}",
+  "message": "hello avalanche!"
+}
