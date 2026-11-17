@@ -1,0 +1,13 @@
+{
+  "ValidatorMessages": "568b8f58354ff7c300a848a90d58e010d5590ce93e2a2b9a76208cdc77e976f8",
+  "ValidatorManager": "b395c8e4197a764afed483b9d8be0629eda297b5453ae23784d0d014045e439f",
+  "NativeTokenStakingManager": "ed7b6d496803bc0048301acae4506ee9369815563d2da6832652755f1b5cdd5b",
+  "ERC20TokenStakingManager": "6781d8d07457ce3643b216b164f3bfe4c55ac4ff8a26d865c6faa9b55739216a",
+  "ExampleRewardCalculator": "451dd5e6da82f3fcff3bcc20ae5e1aa15a391775917ad4f4fcc3d4ff9dcd7450",
+  "TeleporterMessenger": "86da191e7e9be2ddf895fd754116a88db0e743923747c3122eefb4ec9f1ee84b",
+  "TeleporterRegistry": "65961cad7668594564b121388196bb289c6030c9478ac9cde98d25d6b0fa2900",
+  "ERC20TokenHome": "fd2bdf59171eda7a04246ed6b32e094db59743b77df9f895e53ac0daafb28db0",
+  "NativeTokenRemote": "d00d3adea5f00967fc88d3b4ab3d59c57e6d2f59c3c7aa270a2f480175b97cb3",
+  "StakingToken": "c342e65046723d11f0e799b9037619b2c0f5694779562e72cb967149c0d2c46b",
+  "CashToken": "94e6dea0fa47e1bc455925496881139bbdc4f2bd722ee8bdaeeb6e7550ab5d65"
+}

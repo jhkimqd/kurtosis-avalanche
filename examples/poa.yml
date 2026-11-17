@@ -1,0 +1,7 @@
+# Small, faster alternative: no temporary staking bootstrap fleet.
+primary_count: 2
+validator_count: 1
+rpc_count: 1
+staking: poa
+bridge: false
+metrics: false

@@ -1,0 +1,8 @@
+# Local metadata, build caches, and private deployment evidence are not package inputs.
+.git/
+.build/
+artifacts/
+contracts/out/
+contracts/cache/
+__pycache__/
+*.pyc
