@@ -1,0 +1,200 @@
+package main
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"math/big"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/ava-labs/avalanchego/genesis"
+	ethereum "github.com/ava-labs/libevm"
+	"github.com/ava-labs/libevm/accounts/abi"
+	"github.com/ava-labs/libevm/common"
+	"github.com/ava-labs/libevm/core/types"
+	"github.com/ava-labs/libevm/ethclient"
+)
+
+type ContractArtifact struct {
+	ABI      json.RawMessage `json:"abi"`
+	Bytecode struct {
+		Object         string `json:"object"`
+		LinkReferences map[string]map[string][]struct {
+			Start  int
+			Length int
+		} `json:"linkReferences"`
+	} `json:"bytecode"`
+}
+
+func artifact(name string) (ContractArtifact, abi.ABI, error) {
+	var a ContractArtifact
+	b, e := os.ReadFile(filepath.Join("/fixtures/contracts", name+".json"))
+	if e != nil {
+		return a, abi.ABI{}, e
+	}
+	if e = json.Unmarshal(b, &a); e != nil {
+		return a, abi.ABI{}, e
+	}
+	parsed, e := abi.JSON(strings.NewReader(string(a.ABI)))
+	return a, parsed, e
+}
+func evmTx(ctx context.Context, url, dir, name string, to *common.Address, data []byte, value *big.Int, access types.AccessList) (*types.Receipt, error) {
+	base, _, ok := strings.Cut(url, "/ext/bc/")
+	if !ok {
+		return nil, fmt.Errorf("expected Avalanche URL")
+	}
+	if e := localOnly(ctx, base); e != nil {
+		return nil, e
+	}
+	client, e := ethclient.DialContext(ctx, url)
+	if e != nil {
+		return nil, e
+	}
+	defer client.Close()
+	chain, e := client.ChainID(ctx)
+	if e != nil {
+		return nil, e
+	}
+	identity, e := deploymentIdentity(ctx, base)
+	if e != nil {
+		return nil, e
+	}
+	_, blockchain, _ := strings.Cut(url, "/ext/bc/")
+	fingerprint, _ := json.Marshal([]any{identity, blockchain, chain.String(), to, data, value, access})
+	digest := fmt.Sprintf("%x", sha256.Sum256(fingerprint))
+	path := filepath.Join(dir, name+".evm.json")
+	var j Journal
+	b, e := os.ReadFile(path)
+	tx := new(types.Transaction)
+	if e == nil {
+		if e = json.Unmarshal(b, &j); e != nil {
+			return nil, e
+		}
+		if j.Fingerprint != digest {
+			return nil, fmt.Errorf("EVM operation input mismatch: %s", name)
+		}
+		if e = tx.UnmarshalBinary(j.Signed); e != nil {
+			return nil, e
+		}
+		if j.Version != 1 || tx.Hash().Hex() != j.TxID || tx.ChainId().Cmp(chain) != 0 {
+			return nil, fmt.Errorf("invalid EVM journal")
+		}
+	} else if !os.IsNotExist(e) {
+		return nil, e
+	} else {
+		nonce, e := client.PendingNonceAt(ctx, genesis.EWOQKey.EthAddress())
+		if e != nil {
+			return nil, e
+		}
+		fee, e := client.SuggestGasPrice(ctx)
+		if e != nil {
+			return nil, e
+		}
+		gas := uint64(10000000)
+		if len(access) == 0 {
+			gas, e = client.EstimateGas(ctx, ethereum.CallMsg{From: genesis.EWOQKey.EthAddress(), To: to, Value: value, Data: data})
+			if e != nil {
+				return nil, e
+			}
+			gas = gas + gas/5
+		}
+		unsigned := types.NewTx(&types.AccessListTx{ChainID: chain, Nonce: nonce, GasPrice: fee, Gas: gas, To: to, Value: value, Data: data, AccessList: access})
+		tx, e = types.SignTx(unsigned, types.LatestSignerForChainID(chain), genesis.EWOQKey.ToECDSA())
+		if e != nil {
+			return nil, e
+		}
+		raw, e := tx.MarshalBinary()
+		if e != nil {
+			return nil, e
+		}
+		j = Journal{1, digest, tx.Hash().Hex(), raw, "prepared"}
+		if e = atomicJSON(path, j); e != nil {
+			return nil, e
+		}
+	}
+	receipt, e := client.TransactionReceipt(ctx, tx.Hash())
+	if e != nil || receipt == nil {
+		// A duplicate broadcast is safe; the signed transaction hash remains unchanged.
+		sendErr := client.SendTransaction(ctx, tx)
+		if sendErr == nil {
+			j.State = "submitted"
+			if e = atomicJSON(path, j); e != nil {
+				return nil, e
+			}
+		}
+		for {
+			receipt, e = client.TransactionReceipt(ctx, tx.Hash())
+			if e == nil && receipt != nil {
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return nil, fmt.Errorf("unresolved EVM transaction %s (send: %v): %w", tx.Hash(), sendErr, ctx.Err())
+			case <-time.After(time.Second):
+			}
+		}
+	}
+	if receipt.Status != 1 {
+		j.State = "reverted"
+		if e = atomicJSON(path, j); e != nil {
+			return nil, e
+		}
+		return nil, fmt.Errorf("EVM transaction reverted: %s", tx.Hash())
+	}
+	j.State = "accepted"
+	if e = atomicJSON(path, j); e != nil {
+		return nil, e
+	}
+	if e = atomicJSON(filepath.Join(dir, name+".receipt.json"), receipt); e != nil {
+		return nil, e
+	}
+	return receipt, nil
+}
+func deploy(ctx context.Context, url, dir, name string, library common.Address, constructor ...any) (common.Address, error) {
+	a, parsed, e := artifact(name)
+	if e != nil {
+		return common.Address{}, e
+	}
+	code := strings.TrimPrefix(a.Bytecode.Object, "0x")
+	for _, libs := range a.Bytecode.LinkReferences {
+		for _, refs := range libs {
+			for _, ref := range refs {
+				if ref.Length != 20 || library == (common.Address{}) {
+					return common.Address{}, fmt.Errorf("unresolved library for %s", name)
+				}
+				start := 2 * ref.Start
+				code = code[:start] + hex.EncodeToString(library[:]) + code[start+40:]
+			}
+		}
+	}
+	data, e := hex.DecodeString(code)
+	if e != nil {
+		return common.Address{}, e
+	}
+	args, e := parsed.Pack("", constructor...)
+	if e != nil {
+		return common.Address{}, e
+	}
+	receipt, e := evmTx(ctx, url, dir, "deploy-"+name, nil, append(data, args...), big.NewInt(0), nil)
+	if e != nil {
+		return common.Address{}, e
+	}
+	return receipt.ContractAddress, nil
+}
+func invoke(ctx context.Context, url, dir, name, contract string, address common.Address, access types.AccessList, args ...any) error {
+	_, parsed, e := artifact(contract)
+	if e != nil {
+		return e
+	}
+	data, e := parsed.Pack(name, args...)
+	if e != nil {
+		return e
+	}
+	_, e = evmTx(ctx, url, dir, name, &address, data, big.NewInt(0), access)
+	return e
+}
