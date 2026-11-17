@@ -1,0 +1,5 @@
+schema_version: 1
+l1_count: 1
+validator_count: 4
+staking: native-pos
+smoke_transactions: 5
