@@ -40,6 +40,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | Path | Content |
 | --- | --- |
 | `main.star` | Entry point. Five steps: tools, Primary Network, L1s, metrics, manifest. |
+| `nightly.star` | Test entry point: deploy the network, then verify direct application messages between every pair of L1s. |
 | `src/config/constants.star` | Network IDs, enums, pinned images, ports, limits. |
 | `src/config/input_parser.star` | Every argument and its default; `parse()`. |
 | `src/config/sanity_check.star` | Validation. Runs before any service starts. |
@@ -51,7 +52,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | `src/tools/launcher.star` | The tools service and the helpers that run `lab` in it. |
 | `tools/` | Go program `lab`: keys, genesis, transactions, checks. One file per concern; `main.go` lists the commands. |
 | `static_files/` | Base L1 genesis and the contract artifacts (`static_files/contracts/hashes.json` pins them). |
-| `contracts/` | Sources of the two test tokens and the reproducible artifact build. |
+| `contracts/` | Sources of the two test tokens, the nightly message receiver, and the reproducible artifact build. |
 | `examples/` | The two documented networks: `poa.yml`, `pos.yml`. |
 | `.github/configs/` | Arguments files for CI coverage only. |
 | `docs/config/` | Reference of the AvalancheGo options. |

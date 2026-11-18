@@ -21,6 +21,8 @@
 //	bridge-smoke     send tokens across the bridge and spend them        (bridge.go)
 //	run              send smoke-test transfers on the L1                 (load.go)
 //	verify-rpcs      check that all RPC nodes agree on one block         (load.go)
+//	icm-config       prepare a temporary relayer for nightly L1 tests   (interchain.go)
+//	icm-smoke        verify application messages between every L1 pair (interchain.go)
 package main
 
 import (
@@ -130,7 +132,7 @@ func main() {
 	}
 	defer unlock()
 	if len(os.Args) < 2 {
-		err = fmt.Errorf("usage: lab prepare | create | convert | manager | migrate | finalize-pos | bridge-deploy | bridge-activate | bridge-smoke | verify-rpcs | wait | run")
+		err = fmt.Errorf("usage: lab prepare | create | convert | manager | migrate | finalize-pos | bridge-deploy | bridge-activate | bridge-smoke | icm-config | icm-smoke | verify-rpcs | wait | run")
 	} else {
 		if os.Args[1] != "prepare" && os.Args[1] != "wait" && os.Args[1] != "verify-rpcs" {
 			instance := os.Getenv("LAB_INSTANCE")
@@ -197,6 +199,12 @@ func main() {
 				err = fmt.Errorf("bridge commands require primary URI, L1 RPC and state directory")
 			} else {
 				err = bridge(ctx, os.Args[1], os.Args[2], os.Args[3], os.Args[4])
+			}
+		case "icm-config", "icm-smoke":
+			if len(os.Args) != 5 {
+				err = fmt.Errorf("ICM tests require primary URI, state directory, and deployment manifest JSON")
+			} else {
+				err = interchain(ctx, os.Args[1], os.Args[2], os.Args[3], os.Args[4])
 			}
 		case "finalize-pos":
 			if len(os.Args) < 8 {

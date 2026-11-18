@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start a devnet in a fresh enclave: bash scripts/run.sh [arguments-file]
+# Start a devnet in a fresh enclave: bash scripts/run.sh [arguments-file] [main-file]
 #
 # ENCLAVE names the enclave; the default is a new unique name. The script
 # refuses to deploy into an enclave that exists, because the tools keep the
@@ -24,4 +24,4 @@ if awk -v name="$enclave" '$2 == name { found=1 } END { exit !found }' <<< "$inv
     echo "Enclave $enclave already exists; choose a fresh ENCLAVE" >&2
     exit 1
 fi
-kurtosis run --enclave "$enclave" . --args-file "${1:-examples/pos.yml}"
+kurtosis run --enclave "$enclave" . --args-file "${1:-examples/pos.yml}" --main-file "${2:-main.star}"
