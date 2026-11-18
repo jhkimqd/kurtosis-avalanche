@@ -1,0 +1,62 @@
+# Subnet config (AvalancheGo v1.15.0): how a node treats one L1 as a whole.
+#
+# This file is a reference, not an arguments file. To set an option, copy its
+# lines into your arguments file under `l1.subnet_config` and remove the `#`.
+#
+# AvalancheGo reads the config from <subnet-config-dir>/<subnet-id>.json. It
+# applies to every chain of the subnet, here the one L1 chain. The package
+# gives the same config to every validator and RPC node of the L1.
+#
+# Source: subnets/config.go and snow/consensus/snowball/parameters.go.
+l1:
+  subnet_config:
+
+    # ── Private L1 ──────────────────────────────────────────────────────────
+
+    # validatorOnly (not supported): makes the L1 private. Its nodes then
+    # exchange L1 messages only with validators of the L1 and with the node IDs
+    # in `allowedNodes`. The RPC nodes and the signature aggregator of this
+    # package are not validators, and their node IDs are generated during the
+    # run, so they cannot be listed. The package rejects `validatorOnly: true`.
+
+    # ── Consensus ───────────────────────────────────────────────────────────
+
+    # Snowman consensus parameters of the L1 chain. A parameter that is not
+    # set here takes the value of the node flag in docs/config/node.yml. This
+    # package starts every node with k = 3, alphaPreference = 2, and
+    # alphaConfidence = 2; the AvalancheGo defaults are 20, 15, and 15.
+    # Give every validator of the L1 the same values.
+    #snowParameters:
+    #  # Validators sampled in each poll. Flag: snow-sample-size.
+    #  k: 3
+    #  # Matching answers that change the preferred block. At most k and more
+    #  # than k / 2. Flag: snow-preference-quorum-size.
+    #  alphaPreference: 2
+    #  # Matching answers that count as one successful poll. At least
+    #  # alphaPreference. Flag: snow-confidence-quorum-size.
+    #  alphaConfidence: 2
+    #  # Successful polls in a row that finalize a block. Flag: snow-commit-threshold.
+    #  beta: 20
+    #  # Polls that run at the same time. Flag: snow-concurrent-repolls.
+    #  concurrentRepolls: 4
+    #  # Blocks in consensus that the node aims to process at once. Flag:
+    #  # snow-optimal-processing.
+    #  optimalProcessing: 10
+    #  # Blocks in consensus above which the node reports unhealthy. Flag:
+    #  # snow-max-processing.
+    #  maxOutstandingItems: 256
+    #  # Time in consensus, in nanoseconds, above which the node reports
+    #  # unhealthy (30000000000 = 30s). Flag: snow-max-time-processing.
+    #  maxItemProcessingTime: 30000000000
+
+    # `simplexParameters` selects the Simplex consensus engine in place of
+    # Snowman. It is experimental; this package does not test it. Set at most
+    # one of `snowParameters` and `simplexParameters`. The older name
+    # `consensusParameters` is deprecated.
+
+    # ── Storage ─────────────────────────────────────────────────────────────
+
+    # Number of old Snowman++ block wrappers that the node keeps for each
+    # chain. 0 keeps all of them.
+    # Type: uint64. Default: 0.
+    #proposerNumHistoricalBlocks: 0

@@ -1,0 +1,109 @@
+# P-Chain and X-Chain chain configs (AvalancheGo v1.15.0).
+#
+# This file is a reference, not an arguments file. To set an option, copy its
+# lines into your arguments file under `primary_network.p_chain_config` or
+# `primary_network.x_chain_config` and remove the `#`. The value on each line
+# is the AvalancheGo default.
+#
+# Both configs tune the caches and the gossip of a node. The economic rules of
+# the P-Chain (staking limits, fees) are node flags: see "Primary Network
+# staking" and "Transaction fees" in docs/config/node.yml. The C-Chain config
+# is in docs/config/c-chain.yml.
+#
+# Source: vms/platformvm/config/ and vms/avm/config.go in AvalancheGo. The
+# options are listed there in Go; the upstream config.md files are older.
+primary_network:
+
+  # ── P-Chain ───────────────────────────────────────────────────────────────
+  p_chain_config:
+
+    # Verify a checksum of the chain state after each block. Slow; for debugging.
+    #checksums-enabled: false
+
+    # Cache sizes, in bytes.
+    #block-cache-size: 67108864
+    #tx-cache-size: 134217728
+    #transformed-subnet-tx-cache-size: 4194304
+    #fx-owner-cache-size: 4194304
+    # Cache sizes, in entries.
+    #reward-utxos-cache-size: 2048
+    #chain-cache-size: 2048
+    #chain-db-cache-size: 2048
+    #block-id-cache-size: 8192
+    # Caches for subnet-to-L1 conversions and for L1 validators, in bytes.
+    #subnet-to-l1-conversion-cache-size: 4194304
+    #l1-weights-cache-size: 16384
+    #l1-inactive-validators-cache-size: 262144
+    #l1-subnet-id-node-id-cache-size: 16384
+
+    # Transaction pool: time between two checks that drop the transactions
+    # that are no longer valid, in nanoseconds (30m), and the gas that the
+    # pending transactions may hold.
+    #mempool-prune-frequency: 1800000000000
+    #mempool-gas-capacity: 1000000
+
+    # Gossip of transactions between nodes. A duration is in nanoseconds.
+    #network:
+    #  # Oldest validator set that the node still uses to pick gossip peers (1m).
+    #  max-validator-set-staleness: 60000000000
+    #  # Target size of one gossip message, in bytes.
+    #  target-gossip-size: 20480
+    #  # First gossip round: share of the stake to reach, and how many
+    #  # validators and other peers receive a new transaction.
+    #  push-gossip-percent-stake: 0.9
+    #  push-gossip-num-validators: 100
+    #  push-gossip-num-peers: 0
+    #  # Later rounds: how many validators and other peers.
+    #  push-regossip-num-validators: 10
+    #  push-regossip-num-peers: 0
+    #  # Dropped transactions that the node remembers, so that it does not push
+    #  # them again.
+    #  push-gossip-discarded-cache-size: 16384
+    #  # Shortest time before the node pushes the same transaction again (30s).
+    #  push-gossip-max-regossip-frequency: 30000000000
+    #  # Time between two push rounds (500ms) and between two pull rounds (1.5s).
+    #  push-gossip-frequency: 500000000
+    #  pull-gossip-frequency: 1500000000
+    #  # Each validator may send this many pull requests per period (1h).
+    #  pull-gossip-throttling-period: 3600000000000
+    #  pull-gossip-requests-per-validator: 2400
+    #  # Bloom filter that tracks the transactions a peer already knows.
+    #  expected-bloom-filter-elements: 8192
+    #  expected-bloom-filter-false-positive-probability: 0.01
+    #  max-bloom-filter-false-positive-probability: 0.05
+
+  # ── X-Chain ───────────────────────────────────────────────────────────────
+  x_chain_config:
+
+    # Verify a checksum of the chain state after each block. Slow; for debugging.
+    #checksums-enabled: false
+
+    # Gossip of transactions between nodes. A duration is in nanoseconds.
+    #network:
+    #  # Oldest validator set that the node still uses to pick gossip peers (1m).
+    #  max-validator-set-staleness: 60000000000
+    #  # Target size of one gossip message, in bytes.
+    #  target-gossip-size: 20480
+    #  # First gossip round: share of the stake to reach, and how many
+    #  # validators and other peers receive a new transaction.
+    #  push-gossip-percent-stake: 0.9
+    #  push-gossip-num-validators: 100
+    #  push-gossip-num-peers: 0
+    #  # Later rounds: how many validators and other peers.
+    #  push-regossip-num-validators: 10
+    #  push-regossip-num-peers: 0
+    #  # Dropped transactions that the node remembers, so that it does not push
+    #  # them again.
+    #  push-gossip-discarded-cache-size: 16384
+    #  # Shortest time before the node pushes the same transaction again (30s).
+    #  push-gossip-max-regossip-frequency: 30000000000
+    #  # Time between two push rounds (500ms) and between two pull rounds (1.5s).
+    #  push-gossip-frequency: 500000000
+    #  pull-gossip-frequency: 1500000000
+    #  # Each validator may send this many pull requests per period (1h).
+    #  pull-gossip-throttling-period: 3600000000000
+    #  pull-gossip-requests-per-validator: 2400
+    #  # Bloom filter that tracks the transactions a peer already knows.
+    #  expected-bloom-filter-elements: 8192
+    #  expected-bloom-filter-false-positive-probability: 0.01
+    #  max-bloom-filter-false-positive-probability: 0.05

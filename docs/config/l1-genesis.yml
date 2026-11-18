@@ -1,0 +1,149 @@
+# Subnet-EVM genesis (v1.15.0): the rules and the first state of the L1 chain.
+#
+# This file is a reference, not an arguments file. To set an option, copy its
+# lines into your arguments file under `l1.genesis` and remove the `#`.
+#
+# The package merges your mapping into static_files/l1-genesis.json. A nested
+# mapping merges key by key. Any other value, a list included, replaces the
+# base value. The values below are the values of that base file.
+#
+# The file lists the options that matter for a devnet. Subnet-EVM accepts
+# more: an activation time for each network upgrade (all are active from the
+# first block here), and an initial config inside some precompiles. See
+# graft/subnet-evm/params/extras/ and graft/subnet-evm/precompile/contracts/
+# in AvalancheGo.
+#
+# The genesis is final once the L1 exists. To try another value, start a new
+# enclave. Node-level tuning that can change at any restart is in
+# docs/config/l1-chain.yml.
+l1:
+  genesis:
+
+    # ── Chain rules ─────────────────────────────────────────────────────────
+    config:
+
+      # chainId (managed): the package sets it from `l1.chain_id`.
+
+      # Gas fees. Every transaction pays `gas used * gas price` in the native
+      # token of the L1. The fee is burned, unless `allowFeeRecipients` or the
+      # reward manager precompile sends it to an address.
+      feeConfig:
+        # Maximum gas that one block can use. The package copies the value
+        # into the `gasLimit` of the genesis header, which must be the same.
+        #gasLimit: 20000000
+
+        # Lowest base fee (gas price), in wei. 1000000000 wei = 1 gwei.
+        #minBaseFee: 1000000000
+
+        # Gas use per rolling 10 seconds that keeps the base fee stable. The
+        # base fee rises when the chain uses more, and falls when it uses less.
+        #targetGas: 100000000
+
+        # Speed of base fee changes. A larger value makes the fee change slower.
+        #baseFeeChangeDenominator: 48
+
+        # Block gas cost: before the Granite upgrade, a block paid an extra fee
+        # when it came sooner than `targetBlockRate` seconds after its parent.
+        # Granite is active on this devnet, so the block gas cost is always 0.
+        # The four fields must still be present and valid.
+        #targetBlockRate: 2
+        #minBlockGasCost: 0
+        #maxBlockGasCost: 10000000
+        #blockGasCostStep: 500000
+
+      # Let each block builder collect the transaction fees instead of burning
+      # them. A validator names its address with `feeRecipient` in the chain
+      # config (docs/config/l1-chain.yml).
+      #allowFeeRecipients: false
+
+      # Minimum time between two blocks at genesis, in milliseconds (ACP-226).
+      # 0 selects the upstream default of about 2000 ms, which is also the
+      # largest value that Subnet-EVM accepts here. Validators can move the
+      # value later with `min-delay-target` in the chain config.
+      #initialMinDelayMS: 0
+
+      # Precompiles are contracts that are built into Subnet-EVM. Each one is
+      # off unless the genesis names it. `blockTimestamp: 0` turns it on from
+      # the first block. Most precompiles carry an allow list with three roles:
+      #
+      #   adminAddresses    can use the precompile and change every role
+      #   managerAddresses  can use the precompile and change enabled addresses
+      #   enabledAddresses  can use the precompile
+      #
+      # The examples below give the admin role to the EWOQ account.
+      #
+      # With `bridge: true`, four more accounts send transactions on the L1:
+      # two deploy the bridge contracts, one is the relayer, and one receives
+      # the test transfer. An allow list for transactions or for deployers
+      # would stop them, so use those two precompiles with `bridge: false`.
+
+      # Restrict who can deploy contracts (0x0200000000000000000000000000000000000000).
+      # Needs `bridge: false`.
+      #contractDeployerAllowListConfig:
+      #  blockTimestamp: 0
+      #  adminAddresses: ["0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"]
+
+      # contractNativeMinterConfig (managed): mint the native token
+      # (0x0200000000000000000000000000000000000001). With `bridge: true` the
+      # package lets the bridge contract mint; otherwise the precompile is off.
+
+      # Restrict who can send transactions (0x0200000000000000000000000000000000000002).
+      # Needs `bridge: false`.
+      #txAllowListConfig:
+      #  blockTimestamp: 0
+      #  adminAddresses: ["0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"]
+
+      # Let allowed addresses change `feeConfig` on the running chain
+      # (0x0200000000000000000000000000000000000003).
+      #feeManagerConfig:
+      #  blockTimestamp: 0
+      #  adminAddresses: ["0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"]
+
+      # Let allowed addresses decide where transaction fees go: burned, to one
+      # reward address, or to each block builder
+      # (0x0200000000000000000000000000000000000004).
+      #rewardManagerConfig:
+      #  blockTimestamp: 0
+      #  adminAddresses: ["0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"]
+      #  initialRewardConfig:
+      #    allowFeeRecipients: false
+      #    rewardAddress: "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"
+
+      # warpConfig (managed): Avalanche Warp Messaging
+      # (0x0200000000000000000000000000000000000005). Always on: validator
+      # management and the bridge send and verify Warp messages.
+
+      # Gas price manager (0x0200000000000000000000000000000000000006), new in
+      # v1.15.0: stores a gas price config that allowed addresses can change.
+      # The package does not use or test it. See
+      # graft/subnet-evm/precompile/contracts/gaspricemanager in AvalancheGo.
+      #gasPriceManagerConfig:
+      #  blockTimestamp: 0
+      #  adminAddresses: ["0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"]
+
+    # ── First state ─────────────────────────────────────────────────────────
+
+    # Accounts that exist in the first block. The address is hex, with or
+    # without `0x`, in any letter case. `balance` is in wei: 1 token = 10^18
+    # wei. It is required; write it as a quoted string, in hex or decimal. An
+    # account can also carry contract `code`, `storage`, and a `nonce`. An
+    # entry for an address of the base file merges into that entry.
+    #
+    # The total of all balances is the token supply of the L1. With
+    # `bridge: true`, the bridge locks the same amount of CASH on the C-Chain
+    # as collateral. 1,000,000,000 CASH exist for all L1s of the network
+    # together, so the sum of their supplies must stay below that.
+    #
+    # The package signs its transactions with the EWOQ account and pays gas
+    # from it. Keep that account funded. Three accounts deploy contracts at
+    # fixed addresses and must keep nonce 0 and no code: EWOQ, and with
+    # `bridge: true` also 0xF7Edc8FA1eCc32967F827C9043FcAe6ba73afA5c and
+    # 0x4CCeBa2d7D2B4fdcE4304d3e09a1fea9fbEb1528.
+    #alloc:
+    #  "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC":
+    #    balance: "0xd3c21bcecceda1000000"
+
+    # Header fields of the first block. `timestamp` is in seconds since 1970,
+    # in hex. `gasLimit` (managed) follows `config.feeConfig.gasLimit`. The
+    # other fields are constants.
+    #timestamp: "0x667B19F0"
