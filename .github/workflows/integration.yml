@@ -12,15 +12,28 @@ jobs:
     strategy:
       max-parallel: 1
       matrix:
-        profile: [default, poa, erc20-pos, two-l1s]
+        # examples/ holds the two documented networks. .github/configs/ covers
+        # the features that they do not use.
+        include:
+          - name: poa
+            args: examples/poa.yml
+          - name: pos
+            args: examples/pos.yml
+          - name: erc20-pos
+            args: .github/configs/erc20-pos.yml
+          - name: two-l1s
+            args: .github/configs/two-l1s.yml
     env:
-      ENCLAVE: avax-ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.profile }}
+      ENCLAVE: avax-ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/build.sh
+      # The runner must have PyYAML (python3-yaml); the tests fail without it in CI.
       - run: python3 -m unittest discover -s tests -v
       - run: mkdir -p artifacts
-      - run: bash scripts/run.sh examples/${{ matrix.profile }}.yml > artifacts/integration.log 2>&1
+      - run: bash scripts/run.sh ${{ matrix.args }} > artifacts/integration.log 2>&1
+      # Check the network from outside the enclave, with independent tools.
+      - run: bash scripts/check-devnet.sh "$ENCLAVE" > artifacts/check-devnet.log 2>&1
       - run: kurtosis enclave inspect "$ENCLAVE" > artifacts/enclave.txt
         if: always()
       - name: Capture journals and service logs before cleanup
@@ -31,7 +44,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: integration-${{ matrix.profile }}
+          name: integration-${{ matrix.name }}
           path: artifacts/
       - run: kurtosis enclave rm -f "$ENCLAVE"
         if: always()

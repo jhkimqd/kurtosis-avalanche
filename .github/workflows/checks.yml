@@ -10,12 +10,14 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      # The tests read the arguments files and docs/config/ with PyYAML.
+      - run: sudo apt-get install -y python3-yaml
       - run: python3 -m unittest discover -s tests -v
       # The build runs Go unit tests inside the pinned compiler image.
       - run: bash scripts/build.sh
       # Bridge recovery tests use the production ABIs; do not silently skip them.
       - run: docker build --target build --tag avalanche-tools:tests tools
-      - run: docker run --rm -v "$PWD/static_files:/fixtures:ro" avalanche-tools:tests sh -c 'go test -count=1 -race -v ./... && go vet ./...'
+      - run: docker run --rm -v "$PWD/static_files:/fixtures:ro" avalanche-tools:tests sh -c 'test -z "$(gofmt -l ./*.go)" && go test -count=1 -race -v ./... && go vet ./...'
       - run: bash scripts/check-contracts.sh
       - name: Install pinned Kurtosis CLI
         run: |
@@ -23,4 +25,5 @@ jobs:
           echo "6522717e33ede4e08b5fd3f2a47689c016c045075777c938f43d4b94e17c760d  /tmp/kurtosis.deb" | sha256sum --check
           sudo apt-get install -y /tmp/kurtosis.deb
           kurtosis analytics disable
+      # Lint, then plan every file in examples/ and .github/configs/.
       - run: bash scripts/check-package.sh
