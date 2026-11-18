@@ -82,8 +82,8 @@ Gate: reviewed compatibility matrix, threat model, and measurable service object
 
 ### Phase 1 — local remote-signer harness
 
-- [ ] Add an explicit opt-in remote-signer mode in `src/config/input.star`; keep managed identity settings protected instead of allowing arbitrary overrides.
-- [ ] Adapt `tools/main.go` (`prepare` / `configure`) and fixture generation and `src/node/launcher.star` to use public signer identity and proof material. Never generate, embed, mount, or export BLS private keys into node fixtures, `/state`, manifests, config artifacts, logs, or failure bundles in remote mode. Preserve the separate TLS identity requirements.
+- [ ] Add an explicit opt-in remote-signer mode in `src/config/input_parser.star` and `src/config/sanity_check.star`; keep managed identity settings protected instead of allowing arbitrary overrides.
+- [ ] Adapt `tools/main.go` (`prepare`) and `src/node/launcher.star` to use public signer identity and proof material. Never generate, embed, mount, or export BLS private keys into node fixtures, `/state`, manifests, config artifacts, logs, or failure bundles in remote mode. Preserve the separate TLS identity requirements.
 - [ ] Store development signer keys only in a signer-owned volume excluded from node mounts, shared tools `/state`, manifests, exports, and failure bundles. Never reuse the current fixture-artifact flow for signer secrets. These development keys provide no hardware confidentiality.
 - [ ] Launch a per-key software signer and local transport proxy for development. Integrate proof/public-key discovery before genesis/registration needs it; implement the restricted pre-genesis provisioning state followed by approved genesis-manifest activation to avoid signer/node/registration startup cycles.
 - [ ] Label software signing and local credentials as development only. Production mode must reject mock attestation and plaintext fallback. Do not include production secret material in a Kurtosis package or package upload.
