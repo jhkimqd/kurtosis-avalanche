@@ -77,8 +77,9 @@ l1:
   validator_count: 5
   rpc_count: 1
 
-  # EVM chain ID of the first L1; L1 number n uses `chain_id + n`.
-  # 88888 belongs to the C-Chain.
+  # EVM chain ID of the first L1; L1 number n uses `chain_id + n`. The
+  # package rejects 88888 (the C-Chain), and the IDs of public networks: 1
+  # (Ethereum), 43113 (Fuji), and 43114 (Avalanche Mainnet).
   chain_id: 77777
 
   # Gas fees and token supply. The mapping is merged into the Subnet-EVM
