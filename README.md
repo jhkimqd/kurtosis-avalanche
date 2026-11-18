@@ -6,6 +6,35 @@ The package registers each L1 and its validators, supports Proof of Authority an
 
 > For local development and testing only. Funded accounts use public private keys. Never use these keys for real funds.
 
+## Network architecture
+
+The L1 group repeats for each configured L1. Validator and RPC node counts are configurable; the relayer and Prometheus are optional.
+
+```mermaid
+flowchart TB
+    subgraph enclave["Kurtosis enclave"]
+        direction TB
+        P["Primary Network validators<br/>P-Chain, X-Chain, C-Chain"]
+        subgraph l1["Each Avalanche L1"]
+            L["Subnet-EVM<br/>Validators and RPC nodes"]
+            A["Signature aggregator"]
+            B["ICM relayer<br/>bridge: true"]
+        end
+        T["Tools<br/>Setup and checks"]
+        M["Prometheus<br/>metrics: true"]
+    end
+    L -->|"track P-Chain"| P
+    A -->|"collect signatures"| L
+    A -->|"read validator sets"| P
+    B <-->|"C-Chain bridge messages"| P
+    B <-->|"L1 bridge messages"| L
+    T -->|"setup transactions"| P
+    T -->|"setup transactions"| L
+    T -->|"request signatures"| A
+    M -.->|"scrape node metrics"| P
+    M -.->|"scrape node metrics"| L
+```
+
 ## Requirements
 
 - A running [Docker](https://docs.docker.com/get-docker/) runtime.
