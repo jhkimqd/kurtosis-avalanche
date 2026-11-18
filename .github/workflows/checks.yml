@@ -4,26 +4,28 @@ on:
   pull_request:
 permissions:
   contents: read
+defaults:
+  run:
+    shell: bash
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   checks:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      # The tests read the arguments files and docs/config/ with PyYAML.
-      - run: sudo apt-get install -y python3-yaml
-      - run: python3 -m unittest discover -s tests -v
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-kurtosis
+      # Use the system Python that owns the apt-installed PyYAML package.
+      - run: /usr/bin/python3 -m unittest discover -s tests -v
       # The build runs Go unit tests inside the pinned compiler image.
       - run: bash scripts/build.sh
       # Bridge recovery tests use the production ABIs; do not silently skip them.
       - run: docker build --target build --tag avalanche-tools:tests tools
       - run: docker run --rm -v "$PWD/static_files:/fixtures:ro" avalanche-tools:tests sh -c 'test -z "$(gofmt -l ./*.go)" && go test -count=1 -race -v ./... && go vet ./...'
       - run: bash scripts/check-contracts.sh
-      - name: Install pinned Kurtosis CLI
-        run: |
-          curl --fail --location --output /tmp/kurtosis.deb https://sdk.kurtosis.com/kurtosis-cli-release-artifacts/kurtosis-cli_1.18.2_linux_amd64.deb
-          echo "6522717e33ede4e08b5fd3f2a47689c016c045075777c938f43d4b94e17c760d  /tmp/kurtosis.deb" | sha256sum --check
-          sudo apt-get install -y /tmp/kurtosis.deb
-          kurtosis analytics disable
       # Lint, then plan every file in examples/ and .github/configs/.
       - run: bash scripts/check-package.sh

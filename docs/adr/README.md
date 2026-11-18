@@ -13,6 +13,7 @@ An ADR records one decision that shapes this package: the situation, the choice,
 | [0007](0007-generated-option-references.md) | Generate the option references from the pinned release |
 | [0008](0008-testing.md) | Test Starlark logic in Python and the real interpreter with dry runs |
 | [0009](0009-pinned-dependencies.md) | Pin every image and contract artifact |
+| [0010](0010-hosted-functionality-tests.md) | Run live functionality tests on hosted CI runners |
 
 ## Add an ADR
 
