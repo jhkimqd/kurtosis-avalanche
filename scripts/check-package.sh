@@ -9,12 +9,17 @@ kurtosis lint .
 enclave="avax-check-$(date +%s)-$$"
 log=$(mktemp)
 trap 'rm -f "$log"; kurtosis enclave rm -f "$enclave" >/dev/null' EXIT
-for profile in examples/*.yml .github/configs/*.yml; do
-    echo "Planning $profile"
-    kurtosis run --dry-run --enclave "$enclave" . --args-file "$profile" 2>&1 | tee "$log"
+plan_profile() {
+    local profile=$1 entrypoint=${2:-main.star}
+    echo "Planning $profile with $entrypoint"
+    kurtosis run --dry-run --enclave "$enclave" . --args-file "$profile" --main-file "$entrypoint" 2>&1 | tee "$log"
     # Kurtosis 1.18.2 reports interpretation errors with exit status zero.
     if [[ $(<"$log") == *'Error encountered running Starlark code in dry-run mode.'* ]]; then
         echo "Package planning failed for $profile" >&2
-        exit 1
+        return 1
     fi
+}
+for profile in examples/*.yml .github/configs/*.yml; do
+    plan_profile "$profile"
 done
+plan_profile .github/configs/two-l1s.yml nightly.star

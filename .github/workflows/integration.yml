@@ -4,7 +4,7 @@ on:
   pull_request:
   workflow_dispatch:
   schedule:
-    - cron: '17 3 * * 1'
+    - cron: '17 3 * * *'
 permissions:
   contents: read
 defaults:
@@ -25,12 +25,16 @@ jobs:
         include:
           - name: poa
             args: examples/poa.yml
+            main_file: main.star
           - name: pos
             args: examples/pos.yml
+            main_file: main.star
           - name: erc20-pos
             args: .github/configs/erc20-pos.yml
+            main_file: main.star
           - name: two-l1s
             args: .github/configs/two-l1s.yml
+            main_file: nightly.star
     env:
       ENCLAVE: avax-ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.name }}
     steps:
@@ -43,11 +47,16 @@ jobs:
       # Use the system Python that owns the apt-installed PyYAML package.
       - run: /usr/bin/python3 -m unittest discover -s tests -v
       - name: Deploy devnet
+        id: deploy
         env:
           ARGS_FILE: ${{ matrix.args }}
-        run: bash scripts/run.sh "$ARGS_FILE" 2>&1 | tee artifacts/integration.log
+          MAIN_FILE: ${{ matrix.main_file }}
+        run: bash scripts/run.sh "$ARGS_FILE" "$MAIN_FILE" 2>&1 | tee artifacts/integration.log
       # Check the network from outside the enclave, with independent tools.
       - run: bash scripts/check-devnet.sh "$ENCLAVE" 2>&1 | tee artifacts/check-devnet.log
+      - name: Collect interchain delivery proof
+        if: ${{ always() && matrix.main_file == 'nightly.star' && steps.deploy.outcome == 'success' }}
+        run: kurtosis files download "$ENCLAVE" nightly-results artifacts/nightly-results
       - name: Capture service logs before cleanup
         if: always()
         run: |
