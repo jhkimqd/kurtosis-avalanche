@@ -1,0 +1,19 @@
+name: Set up Kurtosis
+description: Install the checksum-verified CLI and dependencies used by CI.
+runs:
+  using: composite
+  steps:
+    - name: Install Kurtosis and test dependencies
+      shell: bash
+      env:
+        KURTOSIS_VERSION: 1.18.2
+        KURTOSIS_SHA256: 6522717e33ede4e08b5fd3f2a47689c016c045075777c938f43d4b94e17c760d
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl jq python3-yaml
+        curl --fail --location --retry 3 --output /tmp/kurtosis.deb \
+          "https://sdk.kurtosis.com/kurtosis-cli-release-artifacts/kurtosis-cli_${KURTOSIS_VERSION}_linux_amd64.deb"
+        echo "$KURTOSIS_SHA256  /tmp/kurtosis.deb" | sha256sum --check
+        sudo apt-get install -y /tmp/kurtosis.deb
+        kurtosis analytics disable
+        kurtosis engine start

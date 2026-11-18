@@ -1,50 +1,77 @@
-name: local integration
+name: functionality tests
 on:
+  push:
+  pull_request:
   workflow_dispatch:
   schedule:
-    - cron: '17 3 * * 1'
+    - cron: '17 3 * * *'
 permissions:
   contents: read
+defaults:
+  run:
+    shell: bash
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   devnet:
-    runs-on: [self-hosted, linux, avalanche-lab]
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
-      max-parallel: 1
+      fail-fast: false
       matrix:
         # examples/ holds the two documented networks. .github/configs/ covers
         # the features that they do not use.
         include:
           - name: poa
             args: examples/poa.yml
+            main_file: main.star
           - name: pos
             args: examples/pos.yml
+            main_file: main.star
           - name: erc20-pos
             args: .github/configs/erc20-pos.yml
+            main_file: main.star
           - name: two-l1s
             args: .github/configs/two-l1s.yml
+            main_file: nightly.star
     env:
       ENCLAVE: avax-ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.name }}
     steps:
-      - uses: actions/checkout@v4
-      - run: bash scripts/build.sh
-      # The runner must have PyYAML (python3-yaml); the tests fail without it in CI.
-      - run: python3 -m unittest discover -s tests -v
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: mkdir -p artifacts
-      - run: bash scripts/run.sh ${{ matrix.args }} > artifacts/integration.log 2>&1
+      - uses: ./.github/actions/setup-kurtosis
+      - run: bash scripts/build.sh
+      # Use the system Python that owns the apt-installed PyYAML package.
+      - run: /usr/bin/python3 -m unittest discover -s tests -v
+      - name: Deploy devnet
+        id: deploy
+        env:
+          ARGS_FILE: ${{ matrix.args }}
+          MAIN_FILE: ${{ matrix.main_file }}
+        run: bash scripts/run.sh "$ARGS_FILE" "$MAIN_FILE" 2>&1 | tee artifacts/integration.log
       # Check the network from outside the enclave, with independent tools.
-      - run: bash scripts/check-devnet.sh "$ENCLAVE" > artifacts/check-devnet.log 2>&1
-      - run: kurtosis enclave inspect "$ENCLAVE" > artifacts/enclave.txt
-        if: always()
-      - name: Capture journals and service logs before cleanup
+      - run: bash scripts/check-devnet.sh "$ENCLAVE" 2>&1 | tee artifacts/check-devnet.log
+      - name: Collect interchain delivery proof
+        if: ${{ always() && matrix.main_file == 'nightly.star' && steps.deploy.outcome == 'success' }}
+        run: kurtosis files download "$ENCLAVE" nightly-results artifacts/nightly-results
+      - name: Capture service logs before cleanup
         if: always()
         run: |
-          kurtosis files storeservice --name ci-deployment-state "$ENCLAVE" tools /state || true
-          kurtosis enclave dump "$ENCLAVE" artifacts/enclave-dump
-      - uses: actions/upload-artifact@v4
+          if kurtosis enclave inspect "$ENCLAVE" > artifacts/enclave.txt 2>&1; then
+            kurtosis enclave dump "$ENCLAVE" artifacts/enclave-dump
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: integration-${{ matrix.name }}
           path: artifacts/
-      - run: kurtosis enclave rm -f "$ENCLAVE"
+          retention-days: 7
+      - name: Remove devnet
         if: always()
+        run: |
+          if kurtosis enclave inspect "$ENCLAVE" >/dev/null 2>&1; then
+            kurtosis enclave rm -f "$ENCLAVE"
+          fi

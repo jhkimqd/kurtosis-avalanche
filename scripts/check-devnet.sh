@@ -22,6 +22,10 @@ EWOQ_KEY=0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027
 EWOQ_ADDRESS=0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC
 # The Foundry image that also builds the contracts (contracts/Dockerfile).
 foundry=$(grep -o -m1 'ghcr.io/foundry-rs/foundry[^ ]*' contracts/Dockerfile)
+# Pull before capturing cast output: Docker writes first-pull progress to stderr.
+if ! docker image inspect "$foundry" >/dev/null 2>&1; then
+    docker pull "$foundry" >&2
+fi
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT

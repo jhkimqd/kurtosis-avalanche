@@ -1,0 +1,42 @@
+name: version watch
+on:
+  schedule:
+    - cron: '43 6 * * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/version-watch.yml
+      - .github/actions/setup-kurtosis/action.yml
+      - scripts/watch-versions.py
+      - src/config/constants.star
+      - contracts/Dockerfile
+  pull_request:
+    paths:
+      - .github/workflows/version-watch.yml
+      - .github/actions/setup-kurtosis/action.yml
+      - scripts/watch-versions.py
+      - src/config/constants.star
+      - contracts/Dockerfile
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  releases:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compare pinned versions with stable releases
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/watch-versions.py --output artifacts/versions.md
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: version-watch
+          path: artifacts/versions.md
+          retention-days: 30

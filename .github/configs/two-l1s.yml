@@ -1,4 +1,5 @@
-# CI coverage: two L1s, each with its own validators, aggregator, and bridge.
+# CI coverage: two L1s, each with validators, multiple RPC nodes, and a bridge.
 l1:
   count: 2
   validator_count: 4
+  rpc_count: 2

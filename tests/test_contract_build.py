@@ -72,7 +72,7 @@ else:
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.snapshot(), before)
-        self.assertIn("11", result.stdout)
+        self.assertIn("Verified all contract artifacts", result.stdout)
 
     def test_mismatch_fails_without_rewriting_artifact_or_manifest(self):
         artifact = self.root / "static_files/contracts/CashToken.json"

@@ -9,5 +9,6 @@
   "ERC20TokenHome": "fd2bdf59171eda7a04246ed6b32e094db59743b77df9f895e53ac0daafb28db0",
   "NativeTokenRemote": "d00d3adea5f00967fc88d3b4ab3d59c57e6d2f59c3c7aa270a2f480175b97cb3",
   "StakingToken": "c342e65046723d11f0e799b9037619b2c0f5694779562e72cb967149c0d2c46b",
-  "CashToken": "94e6dea0fa47e1bc455925496881139bbdc4f2bd722ee8bdaeeb6e7550ab5d65"
+  "CashToken": "94e6dea0fa47e1bc455925496881139bbdc4f2bd722ee8bdaeeb6e7550ab5d65",
+  "MessageReceiver": "7c6d7557b22c6b73090349b8cf1532e29b828d16387a7b72e18c9528aa9331cb"
 }
