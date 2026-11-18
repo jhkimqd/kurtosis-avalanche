@@ -1,8 +1,0 @@
-# Complete native-staked devnet with a collateralized C-Chain/L1 bridge.
-primary_count: 3
-l1_count: 1
-validator_count: 4
-rpc_count: 1
-staking: native-pos
-bridge: true
-metrics: true

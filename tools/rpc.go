@@ -17,6 +17,7 @@ import (
 
 var httpClient = &http.Client{Timeout: 15 * time.Second}
 
+// rpc sends one JSON-RPC request and decodes the result.
 func rpc(ctx context.Context, url, method string, params any, result any) error {
 	payload, e := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
 	if e != nil {
@@ -53,6 +54,10 @@ func rpc(ctx context.Context, url, method string, params any, result any) error 
 	}
 	return json.Unmarshal(body.Result, result)
 }
+
+// localOnly fails unless the node at uri reports the network ID of the local
+// devnet. Every path that signs a transaction calls it first, so lab never
+// signs for Fuji or Mainnet.
 func localOnly(ctx context.Context, uri string) error {
 	var r struct {
 		NetworkID string `json:"networkID"`
@@ -60,12 +65,13 @@ func localOnly(ctx context.Context, uri string) error {
 	if e := rpc(ctx, strings.TrimRight(uri, "/")+"/ext/info", "info.getNetworkID", map[string]any{}, &r); e != nil {
 		return e
 	}
-	if r.NetworkID != "88888" {
-		return fmt.Errorf("local lab requires network 88888; got %s", r.NetworkID)
+	if r.NetworkID != strconv.Itoa(networkID) {
+		return fmt.Errorf("local lab requires network %d; got %s", networkID, r.NetworkID)
 	}
 	return nil
 }
 
+// waitRPC waits until an EVM RPC endpoint serves the expected chain ID.
 func waitRPC(ctx context.Context, url string, expected uint64) error {
 	for {
 		var chain string
@@ -82,6 +88,9 @@ func waitRPC(ctx context.Context, url string, expected uint64) error {
 	}
 }
 
+// deploymentIdentity identifies one deployment: the instance name and the hash
+// of the P-Chain genesis block. Every journal includes it, so the state of one
+// enclave is never replayed against another.
 func deploymentIdentity(ctx context.Context, uri string) (string, error) {
 	if e := localOnly(ctx, uri); e != nil {
 		return "", e

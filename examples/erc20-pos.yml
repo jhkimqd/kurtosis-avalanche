@@ -1,4 +1,0 @@
-schema_version: 1
-staking: erc20-pos
-validator_count: 4
-smoke_transactions: 5

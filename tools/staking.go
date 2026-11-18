@@ -26,6 +26,9 @@ import (
 	"github.com/ava-labs/libevm/ethclient"
 )
 
+// epochHeight returns the P-Chain height of the current ProposerVM epoch of a
+// chain. Validators check a Warp message against the validator set at that
+// height.
 func epochHeight(ctx context.Context, endpoint string) (uint64, error) {
 	var raw map[string]json.RawMessage
 	if e := rpc(ctx, endpoint, "proposervm.getCurrentEpoch", map[string]any{}, &raw); e != nil {
@@ -35,6 +38,10 @@ func epochHeight(ctx context.Context, endpoint string) (uint64, error) {
 	_, e := fmt.Sscan(strings.Trim(string(raw["pChainHeight"]), "\""), &height)
 	return height, e
 }
+
+// proof returns an aggregated Warp signature and keeps it in a file. A rerun
+// must reuse the same proof, because the proof is an input of a journaled
+// transaction.
 func proof(ctx context.Context, aggregator, path string, request any) ([]byte, error) {
 	b, e := os.ReadFile(path)
 	if e == nil {
@@ -71,6 +78,8 @@ func proof(ctx context.Context, aggregator, path string, request any) ([]byte, e
 	}
 	return b, nil
 }
+
+// view calls a read-only contract method and returns the decoded outputs.
 func view(ctx context.Context, url, contract string, address common.Address, method string, args ...any) ([]any, error) {
 	_, a, e := artifact(contract)
 	if e != nil {
@@ -92,7 +101,21 @@ func view(ctx context.Context, url, contract string, address common.Address, met
 	return a.Unpack(method, result)
 }
 
-// Proves PoS admission. Initial conversion validators remain unstaked and explicitly reported.
+// migrate moves an L1 from Proof of Authority to Proof of Stake and stakes one
+// validator, the node with the given index.
+//
+// The first call deploys the staking manager (NativeTokenStakingManager or
+// ERC20TokenStakingManager) and a reward calculator, and makes the staking
+// manager the owner of the ValidatorManager. Later calls find these steps in
+// the journals and skip them. Each call then registers one validator:
+//
+//  1. initiateValidatorRegistration on the L1 locks the stake and sends a Warp
+//     message.
+//  2. RegisterL1ValidatorTx carries that message, signed by the L1 validators,
+//     to the P-Chain. It also pays 100 AVAX into the validator's fee balance.
+//  3. completeValidatorRegistration returns the P-Chain's confirmation to the L1.
+//
+// The validators named at conversion hold no stake. finalizePoS removes them.
 func migrate(ctx context.Context, uri, url, dir, aggregator string, nodeIndex int, mode string) error {
 	if e := localOnly(ctx, uri); e != nil {
 		return e
@@ -160,6 +183,18 @@ func migrate(ctx context.Context, uri, url, dir, aggregator string, nodeIndex in
 	if e != nil {
 		return e
 	}
+	// Staking rules of the L1, in field order:
+	//
+	//	minimum stake              1 token
+	//	maximum stake              10 tokens
+	//	minimum stake duration     60 seconds
+	//	minimum delegation fee     1 basis point (0.01%)
+	//	maximum stake multiplier   4: stake plus delegations of at most 4 times
+	//	                           the stake, so delegations of up to 3 times
+	//	weight-to-value factor     5e12 wei per unit of P-Chain weight, so a
+	//	                           stake of 1 token has weight 200000
+	//	reward calculator          ExampleRewardCalculator with a rate of 0
+	//	uptime blockchain          the L1 itself
 	settings := struct {
 		Manager                  common.Address
 		MinimumStakeAmount       *big.Int
@@ -217,7 +252,9 @@ func migrate(ctx context.Context, uri, url, dir, aggregator string, nodeIndex in
 	if e = json.Unmarshal(b, &network); e != nil {
 		return e
 	}
-	// The orchestrator supplies a dedicated admission node, separate from RPC nodes.
+	// Register the node: stake 1 token with a delegation fee of 1 basis point
+	// and a minimum duration of 60 seconds. The EWOQ account owns the
+	// validator and receives its rewards.
 	if nodeIndex < 0 || nodeIndex >= len(network.Nodes) {
 		return fmt.Errorf("invalid fixture index")
 	}
@@ -292,6 +329,8 @@ func migrate(ctx context.Context, uri, url, dir, aggregator string, nodeIndex in
 	if len(validators.Validators) == 0 {
 		return fmt.Errorf("no initial validators")
 	}
+	// Add 1 AVAX to the fee balance of an existing validator. The transaction
+	// makes the P-Chain produce a block before its epoch height is read below.
 	initialTarget := filepath.Join(migration, "topup-target.json")
 	initialText := validators.Validators[0].ValidationID
 	if b, e = os.ReadFile(initialTarget); e == nil {
@@ -349,7 +388,7 @@ func migrate(ctx context.Context, uri, url, dir, aggregator string, nodeIndex in
 	if e != nil {
 		return e
 	}
-	ackMsg, e := warp.NewUnsignedMessage(88888, ids.Empty, envelope.Bytes())
+	ackMsg, e := warp.NewUnsignedMessage(networkID, ids.Empty, envelope.Bytes())
 	if e != nil {
 		return e
 	}

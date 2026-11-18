@@ -1,8 +1,31 @@
+// Command lab is the transaction and identity adapter of kurtosis-avalanche.
+//
+// The Kurtosis package (main.star, src/) starts the services; lab does the work
+// Starlark cannot do: it generates node identities and the Primary Network
+// genesis, signs P-Chain and EVM transactions, and verifies the result. Every
+// setup transaction is journaled under /state before it is sent, so a repeated
+// command resumes the same transaction and never issues a second one. Only the
+// test transfers of `run` have no journal.
+//
+// Commands, in the order the package runs them:
+//
+//	prepare          generate genesis, upgrade schedule, and node keys   (main.go)
+//	create           create the subnet and its Subnet-EVM blockchain     (lifecycle.go)
+//	convert          convert the subnet to an L1                         (lifecycle.go)
+//	wait             wait until an EVM RPC serves the expected chain ID  (rpc.go)
+//	manager          deploy and initialize the ValidatorManager (PoA)    (manager.go)
+//	bridge-deploy    deploy ICM and token-bridge contracts               (bridge.go)
+//	bridge-activate  register the L1 bridge side and add collateral      (bridge.go)
+//	migrate          PoS: deploy the staking manager, stake a validator  (staking.go)
+//	finalize-pos     PoS: remove the bootstrap validators and verify     (finalize.go)
+//	bridge-smoke     send tokens across the bridge and spend them        (bridge.go)
+//	run              send smoke-test transfers on the L1                 (load.go)
+//	verify-rpcs      check that all RPC nodes agree on one block         (load.go)
 package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,13 +38,28 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 )
 
+// Network ID of the local Primary Network. Every command that signs checks
+// that the node reports this ID (see localOnly), so lab never signs for Fuji
+// or Mainnet.
+const networkID = 88888
+
 func save(path string, value any) error { return atomicJSON(path, value) }
+
+// prepare generates everything the network needs before the first node starts:
+//
+//	genesis.json   Primary Network genesis (P-, X-, and C-Chain). It funds the
+//	               public EWOQ key and stakes the first primaryCount nodes.
+//	upgrade.json   Network upgrade schedule: every upgrade is active at genesis.
+//	nodes/<i>/     Staking TLS key pair and BLS signer key of node i.
+//	network.json   Node IDs and BLS proofs of possession, in node order.
+//
+// Node configuration itself is rendered by the Kurtosis package (src/node).
 func prepare(dir string, count, primaryCount int) error {
 	if primaryCount < 1 || count < primaryCount {
 		return fmt.Errorf("invalid node counts")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "genesis.json")); err == nil {
-		return fmt.Errorf("refusing to replace existing fixture")
+		return fmt.Errorf("refusing to replace existing network files")
 	}
 	nodes := tmpnet.NewNodesOrPanic(count)
 	for _, n := range nodes {
@@ -29,11 +67,12 @@ func prepare(dir string, count, primaryCount int) error {
 			return err
 		}
 	}
-	g, err := tmpnet.NewTestGenesis(88888, nodes[:primaryCount], []*secp256k1.PrivateKey{genesis.EWOQKey})
+	g, err := tmpnet.NewTestGenesis(networkID, nodes[:primaryCount], []*secp256k1.PrivateKey{genesis.EWOQKey})
 	if err != nil {
 		return err
 	}
-	// Stable fixture epoch and long-lived local validator windows. This is never a public-network genesis.
+	// Start the network one minute in the past and keep the genesis validators
+	// staked for ten years, so a long-lived devnet never loses its validators.
 	g.StartTime = uint64(time.Now().Add(-time.Minute).Unix())
 	g.InitialStakeDuration = 10 * 365 * 24 * 60 * 60
 	for i := range g.Allocations {
@@ -46,44 +85,40 @@ func prepare(dir string, count, primaryCount int) error {
 	if err = save(filepath.Join(dir, "genesis.json"), g); err != nil {
 		return err
 	}
-	upgrades, err := tmpnet.UpgradeFlags(tmpnet.UpgradeConfig(0))
-	if err != nil {
+	if err = save(filepath.Join(dir, "upgrade.json"), tmpnet.UpgradeConfig(0)); err != nil {
 		return err
 	}
 	metadata := []map[string]any{}
 	for i, n := range nodes {
-		flags := tmpnet.DefaultTmpnetFlags()
-		for k, v := range upgrades {
-			flags[k] = v
+		// tmpnet keeps each key base64 encoded under its "-content" flag.
+		for file, flag := range map[string]string{
+			"staker.key": config.StakingTLSKeyContentKey,
+			"staker.crt": config.StakingCertContentKey,
+			"signer.key": config.StakingSignerKeyContentKey,
+		} {
+			content, err := base64.StdEncoding.DecodeString(n.Flags[flag])
+			if err != nil {
+				return fmt.Errorf("node %d %s: %w", i, file, err)
+			}
+			path := filepath.Join(dir, "nodes", strconv.Itoa(i), file)
+			if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				return err
+			}
+			if err = os.WriteFile(path, content, 0600); err != nil {
+				return err
+			}
 		}
-		for k, v := range n.Flags {
-			flags[k] = v
-		}
-		flags[config.NetworkNameKey] = "88888"
-		flags[config.DataDirKey] = "/data"
-		flags[config.HTTPHostKey] = "0.0.0.0"
-		flags[config.HTTPPortKey] = "9650"
-		flags[config.StakingPortKey] = "9651"
-		flags[config.PluginDirKey] = "/opt/avalanche/plugins"
-		flags[config.ChainConfigDirKey] = "/config/chains"
-		flags[config.ProposerVMUseCurrentHeightKey] = "true"
 		pop, err := n.GetProofOfPossession()
 		if err != nil {
 			return err
 		}
 		metadata = append(metadata, map[string]any{"node_id": n.NodeID.String(), "pop": pop})
-		if err = save(filepath.Join(dir, fmt.Sprintf("node-%d.json", i)), flags); err != nil {
-			return err
-		}
 	}
-	if err = save(filepath.Join(dir, "bootstrap.json"), map[string]string{"id": nodes[0].NodeID.String()}); err != nil {
-		return err
-	}
-	if err = save(filepath.Join(dir, "network.json"), map[string]any{"nodes": metadata}); err != nil {
-		return err
-	}
-	return nil
+	return save(filepath.Join(dir, "network.json"), map[string]any{"nodes": metadata})
 }
+
+// main runs one command. All commands share a ten-minute deadline and one
+// lock (see lock.go), because they sign with the same account.
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
@@ -95,19 +130,19 @@ func main() {
 	}
 	defer unlock()
 	if len(os.Args) < 2 {
-		err = fmt.Errorf("usage: lab prepare | configure | create | convert | manager | migrate | finalize-pos | bridge-deploy | bridge-activate | bridge-smoke | verify-rpcs | wait | run")
+		err = fmt.Errorf("usage: lab prepare | create | convert | manager | migrate | finalize-pos | bridge-deploy | bridge-activate | bridge-smoke | verify-rpcs | wait | run")
 	} else {
 		if os.Args[1] != "prepare" && os.Args[1] != "wait" && os.Args[1] != "verify-rpcs" {
 			instance := os.Getenv("LAB_INSTANCE")
 			if instance == "" || instance == "manual" {
-				fmt.Fprintln(os.Stderr, "stateful commands require the enclave lab helper with LAB_INSTANCE")
+				fmt.Fprintln(os.Stderr, "stateful commands run only in the tools service, where LAB_INSTANCE is set")
 				os.Exit(1)
 			}
 		}
 		switch os.Args[1] {
 		case "prepare":
 			if len(os.Args) != 5 {
-				err = fmt.Errorf("prepare requires output directory, node count and primary count")
+				err = fmt.Errorf("prepare requires output directory, node count and primary validator count")
 			} else {
 				count, e := strconv.Atoi(os.Args[3])
 				primaries, e2 := strconv.Atoi(os.Args[4])
@@ -117,25 +152,19 @@ func main() {
 					err = prepare(os.Args[2], count, primaries)
 				}
 			}
-		case "configure":
-			if len(os.Args) != 5 {
-				err = fmt.Errorf("configure requires source, JSON overrides and output")
-			} else {
-				err = configure(os.Args[2], os.Args[3], os.Args[4])
-			}
 		case "create":
-			if len(os.Args) != 8 {
-				err = fmt.Errorf("create requires URI, state directory, genesis file, chain ID, JSON overrides and bridge boolean")
+			if len(os.Args) != 10 {
+				err = fmt.Errorf("create requires URI, state directory, genesis file, chain ID, genesis overrides, bridge boolean, chain config and subnet config")
 			} else {
 				var bridge bool
 				bridge, err = strconv.ParseBool(os.Args[7])
 				if err == nil {
-					err = create(ctx, os.Args[2], os.Args[3], os.Args[4], os.Args[5], os.Args[6], bridge)
+					err = create(ctx, os.Args[2], os.Args[3], os.Args[4], os.Args[5], os.Args[6], bridge, os.Args[8], os.Args[9])
 				}
 			}
 		case "convert":
 			if len(os.Args) < 9 {
-				err = fmt.Errorf("convert requires URI, state directory, manager chain, address, fixture directory, node indexes")
+				err = fmt.Errorf("convert requires URI, state directory, manager chain, address, fixture directory, validator weight, node indexes")
 			} else {
 				err = convert(ctx, os.Args[2:])
 			}
@@ -154,7 +183,7 @@ func main() {
 			}
 		case "migrate":
 			if len(os.Args) != 8 {
-				err = fmt.Errorf("migrate requires primary URI, L1 RPC, state directory, aggregator URI, fixture index")
+				err = fmt.Errorf("migrate requires primary URI, L1 RPC, state directory, aggregator URI, node index and staking mode")
 			} else {
 				i, e := strconv.Atoi(os.Args[6])
 				if e != nil {
@@ -200,23 +229,4 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-}
-
-// configure merges native node options into generated identity configuration.
-func configure(source, overrides, output string) error {
-	b, err := os.ReadFile(source)
-	if err != nil {
-		return err
-	}
-	var config, extra map[string]any
-	if err = json.Unmarshal(b, &config); err != nil {
-		return err
-	}
-	if err = json.Unmarshal([]byte(overrides), &extra); err != nil {
-		return err
-	}
-	for key, value := range extra {
-		config[key] = value
-	}
-	return save(output, config)
 }

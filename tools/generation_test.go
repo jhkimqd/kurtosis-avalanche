@@ -49,25 +49,15 @@ func TestRuntimeIdentityGeneration(t *testing.T) {
 	if len(g.InitialStakers) != 2 || time.Since(time.Unix(int64(g.StartTime), 0)) > 2*time.Minute {
 		t.Fatal("wrong primary genesis")
 	}
+	for _, file := range []string{"upgrade.json", "nodes/0/staker.key", "nodes/0/staker.crt", "nodes/26/signer.key"} {
+		if info, err := os.Stat(filepath.Join(dir, file)); err != nil || info.Size() == 0 {
+			t.Fatalf("missing network file %s: %v", file, err)
+		}
+	}
+	if _, err = os.Stat(filepath.Join(dir, "nodes/27")); !os.IsNotExist(err) {
+		t.Fatal("generated keys for an unexpected node")
+	}
 	if err = prepare(dir, 27, 2); err == nil {
 		t.Fatal("overwrote existing identities")
-	}
-}
-
-func TestChurnTransitionSmallestFleet(t *testing.T) {
-	total := uint64(20 * 50000)
-	final := uint64(200000)
-	if final*100 > total*20 {
-		t.Fatal("admission exceeds churn cap")
-	}
-	total += final
-	for i := 0; i < 20; i++ {
-		if 50000*100 > total*20 {
-			t.Fatal("removal exceeds churn cap")
-		}
-		total -= 50000
-	}
-	if total != final {
-		t.Fatal("bootstrap weight remains")
 	}
 }

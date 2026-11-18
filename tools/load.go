@@ -15,7 +15,8 @@ import (
 	"github.com/ava-labs/libevm/ethclient"
 )
 
-// This bounded correctness runner is intentionally separate from capacity benchmarking.
+// runTransfers sends n transfers of 1 wei, one after the other, and checks
+// that the balance of the recipient grew by exactly n.
 func runTransfers(ctx context.Context, url string, n int) error {
 	if n < 1 || n > 10000 {
 		return fmt.Errorf("count must be between 1 and 10000")

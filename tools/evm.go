@@ -22,6 +22,8 @@ import (
 	"github.com/ava-labs/libevm/ethclient"
 )
 
+// ContractArtifact is the ABI and bytecode of one contract, as stored in
+// static_files/contracts.
 type ContractArtifact struct {
 	ABI      json.RawMessage `json:"abi"`
 	Bytecode struct {
@@ -33,6 +35,7 @@ type ContractArtifact struct {
 	} `json:"bytecode"`
 }
 
+// artifact loads a contract artifact and its parsed ABI.
 func artifact(name string) (ContractArtifact, abi.ABI, error) {
 	var a ContractArtifact
 	b, e := os.ReadFile(filepath.Join("/fixtures/contracts", name+".json"))
@@ -45,9 +48,18 @@ func artifact(name string) (ContractArtifact, abi.ABI, error) {
 	parsed, e := abi.JSON(strings.NewReader(string(a.ABI)))
 	return a, parsed, e
 }
+
+// evmTx sends an EVM transaction from the EWOQ account. See evmTxAs.
 func evmTx(ctx context.Context, url, dir, name string, to *common.Address, data []byte, value *big.Int, access types.AccessList) (*types.Receipt, error) {
 	return evmTxAs(ctx, url, dir, name, to, data, value, access, genesis.EWOQKey.ToECDSA())
 }
+
+// evmTxAs sends one EVM transaction exactly once and waits for its receipt.
+//
+// It signs the transaction and writes it to the journal dir/name.evm.json
+// before it sends it. A rerun finds the journal and sends the same bytes again,
+// which is harmless. access carries a Warp message for the Warp precompile; gas
+// cannot be estimated for such a call, so it gets a fixed limit.
 func evmTxAs(ctx context.Context, url, dir, name string, to *common.Address, data []byte, value *big.Int, access types.AccessList, key *ecdsa.PrivateKey) (*types.Receipt, error) {
 	from := crypto.PubkeyToAddress(key.PublicKey)
 	base, _, ok := strings.Cut(url, "/ext/bc/")
@@ -173,6 +185,9 @@ func evmTxAs(ctx context.Context, url, dir, name string, to *common.Address, dat
 	}
 	return receipt, nil
 }
+
+// deploy deploys a contract from the EWOQ account. It links library into the
+// bytecode where the artifact references one.
 func deploy(ctx context.Context, url, dir, name string, library common.Address, constructor ...any) (common.Address, error) {
 	a, parsed, e := artifact(name)
 	if e != nil {
@@ -204,6 +219,10 @@ func deploy(ctx context.Context, url, dir, name string, library common.Address, 
 	}
 	return receipt.ContractAddress, nil
 }
+
+// invoke calls a state-changing contract method from the EWOQ account. The
+// method name is also the journal name. access carries a Warp message if the
+// method verifies one.
 func invoke(ctx context.Context, url, dir, name, contract string, address common.Address, access types.AccessList, args ...any) error {
 	_, parsed, e := artifact(contract)
 	if e != nil {

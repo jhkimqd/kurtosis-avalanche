@@ -1,93 +1,73 @@
-commands = import_module("./src/tools.star")
-inputs = import_module("./src/config/input.star")
-nodes = import_module("./src/node/launcher.star")
-l1 = import_module("./src/l1/launcher.star")
-metrics = import_module("./src/services/metrics.star")
+"""Entry point of the package: `kurtosis run .` calls `run`."""
+
+constants = import_module("./src/config/constants.star")
+input_parser = import_module("./src/config/input_parser.star")
+l1_launcher = import_module("./src/l1/launcher.star")
+metrics_launcher = import_module("./src/metrics/launcher.star")
+primary_network_launcher = import_module("./src/primary_network/launcher.star")
+tools = import_module("./src/tools/launcher.star")
 
 
 def run(plan, args={}):
-    cfg = inputs.parse(args)
-    fixture = plan.upload_files(src="./static_files", name="public-local-fixtures")
-    plan.add_service(
-        name="tools",
-        config=ServiceConfig(
-            image=(
-                cfg["tools_image"]
-                if cfg["tools_image"]
-                else ImageBuildSpec(
-                    image_name="avalanche-tools:local", build_context_dir="./tools"
-                )
-            ),
-            entrypoint=["sleep"],
-            cmd=["infinity"],
-            env_vars={"LAB_INSTANCE": cfg["instance_id"]},
-            files={
-                "/fixtures": fixture,
-                "/state": Directory(persistent_key="lab-state"),
-            },
-        ),
-    )
-    total = cfg["primary_count"] + cfg["l1_count"] * cfg["fleet_size"]
-    commands.execute(
+    """Deploys a local Avalanche network: a Primary Network and one or more L1s.
+
+    The Primary Network (P-, X-, and C-Chain) stands in for Avalanche Mainnet.
+    Each L1 is a Subnet-EVM blockchain that the package registers on its P-Chain.
+
+    Args:
+        args: package arguments. `src/config/input_parser.star` defines every
+            argument and its default; `examples/` holds ready-made files.
+    Returns:
+        The deployment manifest: endpoints, IDs, and contract addresses.
+    """
+    args = input_parser.parse(args)
+    primary_validator_count = args["primary_network"]["validator_count"]
+    l1_node_count = l1_launcher.node_count(args["l1"])
+
+    # 1. Start the tools service and generate the genesis and all node keys.
+    tools.launch(plan, args)
+    network = tools.generate_network(
         plan,
-        ["lab", "prepare", "/state/network", str(total), str(cfg["primary_count"])],
+        node_count=primary_validator_count + args["l1"]["count"] * l1_node_count,
+        primary_validator_count=primary_validator_count,
     )
-    generated = plan.store_service_files(
-        name="generated-network", service_name="tools", src="/state/network"
-    )
-    identity = commands.execute(
-        plan, ["cat", "/state/network/bootstrap.json"], {"id": "fromjson | .id"}
-    )
-    targets = []
-    primary = []
-    bootstrap = ("", "")
-    for i in range(cfg["primary_count"]):
-        name = "primary-{}".format(i)
-        service = nodes.launch(plan, cfg, generated, i, name, bootstrap)
-        primary.append(service)
-        targets.append(
-            {
-                "targets": ["{}:9650".format(service.ip_address)],
-                "labels": {"role": "primary", "node": name},
-            }
+
+    # 2. Start the Primary Network: the validators of the P-, X-, and C-Chain.
+    primary = primary_network_launcher.launch(plan, args, network)
+
+    # 3. Create each L1 and attach it to the Primary Network.
+    nodes = list(primary.nodes)
+    l1_manifests = []
+    for l1_index in range(args["l1"]["count"]):
+        l1 = l1_launcher.launch(
+            plan,
+            args,
+            network,
+            primary,
+            l1_index,
+            first_node_index=primary_validator_count + l1_index * l1_node_count,
         )
-        if i == 0:
-            bootstrap = (identity["extract.id"], "{}:9651".format(service.ip_address))
-    for i in range(cfg["primary_count"]):
-        plan.wait(
-            service_name="primary-{}".format(i),
-            recipe=PostHttpRequestRecipe(
-                content_type="application/json",
-                port_id="rpc",
-                endpoint="/ext/health",
-                body='{"jsonrpc":"2.0","id":1,"method":"health.health","params":{}}',
-                extract={"healthy": ".result.healthy"},
-            ),
-            field="extract.healthy",
-            assertion="==",
-            target_value=True,
-            timeout="5m",
-        )
-    uri = "http://{}:9650".format(primary[0].ip_address)
-    chains = l1.launch(plan, cfg, generated, bootstrap, uri, targets)
-    if cfg["metrics"]:
-        metrics.launch(plan, targets)
+        nodes.extend(l1.nodes)
+        l1_manifests.append(l1.manifest)
+
+    # 4. Scrape the metrics of every node.
+    if args["metrics"]:
+        metrics_launcher.launch(plan, args, nodes)
+
+    # 5. Publish the result: the manifest, and a snapshot of the tools state.
     manifest = {
-        "schema_version": 1,
-        "network_id": 88888,
-        "configuration": cfg,
-        "chains": chains,
-        "primary_rpc": uri,
-        "images": {
-            "avalanchego": cfg["primary_image"],
-            "subnet_evm": cfg["node_image"],
-            "aggregator": cfg["aggregator_image"],
-            "relayer": cfg["relayer_image"],
-            "tools": cfg["tools_image"] if cfg["tools_image"] else "built from ./tools",
+        "primary_network": {
+            "network_id": constants.NETWORK_ID,
+            "rpc_url": primary.rpc_url,
+            "p_chain_rpc_url": primary.p_chain_rpc_url,
+            "x_chain_rpc_url": primary.x_chain_rpc_url,
+            "c_chain_rpc_url": primary.c_chain_rpc_url,
+            "c_chain_id": constants.C_CHAIN_ID,
         },
-        "support_level": "local-devnet",
+        "l1s": l1_manifests,
+        "args": args,
     }
-    artifact = plan.render_templates(
+    plan.render_templates(
         name="deployment-manifest",
         config={
             "deployment.json": struct(
@@ -95,14 +75,7 @@ def run(plan, args={}):
             )
         },
     )
-    evidence = plan.store_service_files(
-        name="deployment-state", service_name="tools", src="/state"
+    plan.store_service_files(
+        name="deployment-state", service_name=tools.SERVICE_NAME, src=tools.STATE_PATH
     )
-    return {
-        "primary_rpc": uri,
-        "c_chain_rpc": uri + "/ext/bc/C/rpc",
-        "evidence": evidence,
-        "manifest": artifact,
-        "chains": chains,
-        "tools": "tools",
-    }
+    return manifest

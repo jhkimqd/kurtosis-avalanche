@@ -20,7 +20,13 @@ import (
 	"github.com/ava-labs/libevm/ethclient"
 )
 
-// Public development-only accounts reserve stable deployment addresses.
+// devKey returns a public development key: the private key is the number
+// index. Each key has one job, so that its first contract always lands on the
+// same address:
+//
+//	 8  receives the bridged tokens of the smoke test
+//	 9  deploys TeleporterMessenger
+//	10  deploys NativeTokenRemote
 func devKey(index int) *ecdsa.PrivateKey {
 	key, err := crypto.HexToECDSA(fmt.Sprintf("%064x", index))
 	if err != nil {
@@ -28,14 +34,19 @@ func devKey(index int) *ecdsa.PrivateKey {
 	}
 	return key
 }
+
+// units returns n tokens in wei.
 func units(n int64) *big.Int { return new(big.Int).Mul(big.NewInt(n), big.NewInt(1e18)) }
 
+// BridgeState holds the contract addresses and chain IDs of one bridge. It is
+// stored in bridge/contracts.json.
 type BridgeState struct {
 	Messenger, CRegistry, LRegistry, Token, Home, Remote common.Address
 	CChain, LChain                                       string
 	InitialSupply                                        *big.Int
 }
 
+// deployAs deploys a contract that needs no library from the account of key.
 func deployAs(ctx context.Context, url, dir, name string, key *ecdsa.PrivateKey, args ...any) (common.Address, error) {
 	a, parsed, e := artifact(name)
 	if e != nil {
@@ -59,6 +70,12 @@ func deployAs(ctx context.Context, url, dir, name string, key *ecdsa.PrivateKey,
 	return receipt.ContractAddress, nil
 }
 
+// bridge runs one of the three bridge commands:
+//
+//	bridge-deploy    deploy the contracts and write the relayer config
+//	bridge-activate  register the L1 side with the C-Chain side through the
+//	                 relayer, then lock CASH as collateral for the L1's supply
+//	bridge-smoke     bridge tokens to the L1 and spend them (bridgeSmoke)
 func bridge(ctx context.Context, stage, uri, url, dir string) error {
 	if e := localOnly(ctx, uri); e != nil {
 		return e
@@ -131,6 +148,14 @@ func bridge(ctx context.Context, stage, uri, url, dir string) error {
 	return bridgeSmoke(ctx, cRPC, url, path, state, cid)
 }
 
+// deployBridge deploys the ICM and token bridge contracts.
+//
+// Both chains get a TeleporterMessenger at the same address (deployed by
+// development key 9) and a TeleporterRegistry. The C-Chain gets the CASH token
+// and its ERC20TokenHome. The L1 gets the NativeTokenRemote (deployed by
+// development key 10) at the address that the genesis allows to mint. The
+// function also funds a relayer account on both chains and writes the relayer
+// config.
 func deployBridge(ctx context.Context, uri, url, dir, path string) error {
 	var chain Chain
 	b, e := os.ReadFile(filepath.Join(dir, "chain.json"))
@@ -282,6 +307,8 @@ func deployBridge(ctx context.Context, uri, url, dir, path string) error {
 	}
 	return save(filepath.Join(path, "relayer/config.json"), map[string]any{"log-level": "info", "api-port": 9091, "metrics-port": 9092, "allow-private-ips": true, "storage-location": "/data", "process-missed-blocks": true, "p-chain-api": map[string]string{"base-url": uri}, "info-api": map[string]string{"base-url": uri}, "source-blockchains": sources, "destination-blockchains": destinations})
 }
+
+// tokenBalance returns the CASH balance of owner on the C-Chain.
 func tokenBalance(ctx context.Context, url string, token, owner common.Address) (*big.Int, error) {
 	values, e := view(ctx, url, "CashToken", token, "balanceOf", owner)
 	if e != nil {
@@ -289,6 +316,11 @@ func tokenBalance(ctx context.Context, url string, token, owner common.Address) 
 	}
 	return values[0].(*big.Int), nil
 }
+
+// bridgeSmoke proves that the bridge works. It sends 7 CASH from the C-Chain to
+// a new account on the L1, waits for the relayer to deliver them as 7 native
+// tokens, and pays the gas of an L1 transfer with them. It reconciles the
+// balances on both chains.
 func bridgeSmoke(ctx context.Context, cRPC, url, path string, state BridgeState, cid ids.ID) error {
 	client, e := ethclient.DialContext(ctx, url)
 	if e != nil {

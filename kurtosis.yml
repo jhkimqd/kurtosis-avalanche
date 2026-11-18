@@ -1,2 +1,2 @@
 name: github.com/jihwankim/kurtosis-avalanche
-description: Configurable local Avalanche L1 devnet
+description: Local Avalanche devnet. A Primary Network (P-, X-, and C-Chain) with attached Avalanche L1s.

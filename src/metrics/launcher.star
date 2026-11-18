@@ -1,10 +1,28 @@
-def launch(plan, targets):
-    prometheus_config = plan.render_templates(
+"""Optional Prometheus service that scrapes the metrics of every node."""
+
+constants = import_module("../config/constants.star")
+
+
+def launch(plan, args, nodes):
+    """Starts Prometheus.
+
+    Args:
+        nodes: context of every node to scrape (see src/node/launcher.star).
+    """
+    targets = [
+        {
+            "targets": ["{}:{}".format(node.name, constants.NODE_HTTP_PORT_NUMBER)],
+            "labels": {"node": node.name, "role": node.role},
+        }
+        for node in nodes
+    ]
+    config = plan.render_templates(
         name="prometheus-config",
         config={
             "prometheus.yml": struct(
                 template="{{.content}}",
                 data={
+                    # JSON is valid YAML.
                     "content": json.encode(
                         {
                             "global": {"scrape_interval": "5s"},
@@ -24,13 +42,18 @@ def launch(plan, targets):
     plan.add_service(
         name="prometheus",
         config=ServiceConfig(
-            image="prom/prometheus@sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62",
+            image=args["images"]["prometheus"],
+            ports={
+                "http": PortSpec(
+                    number=constants.PROMETHEUS_PORT_NUMBER, application_protocol="http"
+                )
+            },
+            files={"/etc/prometheus": config},
             cmd=[
                 "--config.file=/etc/prometheus/prometheus.yml",
+                # A devnet needs recent data only.
                 "--storage.tsdb.retention.time=30m",
             ],
-            files={"/etc/prometheus": prometheus_config},
-            ports={"http": PortSpec(number=9090, application_protocol="http")},
-            max_memory=512,
+            max_memory=constants.PROMETHEUS_MAX_MEMORY,
         ),
     )

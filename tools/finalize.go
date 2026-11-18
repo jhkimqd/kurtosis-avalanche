@@ -29,7 +29,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// Force a fresh on-chain churn period. Host time alone is not sufficient on idle EVM chains.
+// waitChurn waits until the L1 has entered a new churn period, so that the next
+// validator change gets the full allowance of 20% of the total weight. Chain
+// time moves only with new blocks, so waitChurn sends empty transactions until
+// a block is late enough.
 func waitChurn(ctx context.Context, url string, manager common.Address, dir string) error {
 	values, err := view(ctx, url, "ValidatorManager", manager, "getChurnTracker")
 	if err != nil {
@@ -69,6 +72,8 @@ func waitChurn(ctx context.Context, url string, manager common.Address, dir stri
 	}
 }
 
+// receiptWarp returns the unsigned Warp message that a transaction sent through
+// the Warp precompile.
 func receiptWarp(receipt *types.Receipt) ([]byte, error) {
 	t, _ := abi.NewType("bytes", "", nil)
 	for _, log := range receipt.Logs {
@@ -83,6 +88,10 @@ func receiptWarp(receipt *types.Receipt) ([]byte, error) {
 	return nil, fmt.Errorf("transaction emitted no Warp message")
 }
 
+// observePChain waits until the ProposerVM epoch of the L1 has reached the
+// current P-Chain height, and returns the epoch height. Only then do the L1
+// validators sign a Warp message about the latest P-Chain change. The epoch
+// moves with new blocks, so observePChain sends empty transactions.
 func observePChain(ctx context.Context, uri, url, dir string) (uint64, error) {
 	var current struct {
 		Height string `json:"height"`
@@ -115,6 +124,20 @@ func observePChain(ctx context.Context, uri, url, dir string) (uint64, error) {
 	}
 }
 
+// finalizePoS removes every bootstrap validator and verifies the result.
+//
+// args: primary URI, L1 RPC, state directory, aggregator URI, staking mode, and
+// the node indexes of the staked validators.
+//
+// Each removal takes three steps:
+//
+//  1. initiateValidatorRemoval on the L1 sends a Warp message.
+//  2. SetL1ValidatorWeightTx carries it to the P-Chain and sets the weight to 0.
+//  3. completeValidatorRemoval returns the P-Chain's confirmation to the L1.
+//
+// The final checks: the P-Chain lists exactly the staked validators; each is
+// active with the expected weight, owner, and a P-Chain balance; and the
+// staking manager holds one token for each of them.
 func finalizePoS(ctx context.Context, args []string) error {
 	uri, url, dir, aggregator, mode := args[0], args[1], args[2], args[3], args[4]
 	contract := "NativeTokenStakingManager"
@@ -223,7 +246,7 @@ func finalizePoS(ctx context.Context, args []string) error {
 		if e != nil {
 			return e
 		}
-		msg, e := warp.NewUnsignedMessage(88888, ids.Empty, envelope.Bytes())
+		msg, e := warp.NewUnsignedMessage(networkID, ids.Empty, envelope.Bytes())
 		if e != nil {
 			return e
 		}

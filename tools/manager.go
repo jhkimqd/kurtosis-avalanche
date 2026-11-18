@@ -23,10 +23,14 @@ import (
 	"github.com/ava-labs/libevm/core/types"
 )
 
+// Chain holds the IDs of one L1, as create stores them in chain.json.
 type Chain struct {
 	Subnet string `json:"subnet_id"`
 	Chain  string `json:"blockchain_id"`
 }
+
+// InitialValidator and ConversionData mirror the Solidity structs that
+// ValidatorManager.initializeValidatorSet takes.
 type InitialValidator struct {
 	NodeID       []byte
 	BlsPublicKey []byte
@@ -39,6 +43,9 @@ type ConversionData struct {
 	InitialValidators            []InitialValidator
 }
 
+// predicate packs a signed Warp message into the access list of a transaction.
+// The Warp precompile reads and verifies the message from there. The encoding
+// is the message bytes, the end marker 0xff, and zero padding to 32-byte words.
 func predicate(signed []byte) types.AccessList {
 	data := append(append([]byte{}, signed...), 255)
 	for len(data)%32 != 0 {
@@ -50,6 +57,11 @@ func predicate(signed []byte) types.AccessList {
 	}
 	return types.AccessList{{Address: common.HexToAddress("0x0200000000000000000000000000000000000005"), StorageKeys: keys}}
 }
+
+// aggregate asks the signature aggregator for a signed Warp message. The
+// validators can need a moment to see the message, so aggregate tries 30
+// times, 2 seconds apart. The caller sets the quorum; all callers ask for 67%
+// of the stake.
 func aggregate(ctx context.Context, url string, request any) ([]byte, error) {
 	body, e := json.Marshal(request)
 	if e != nil {
@@ -86,6 +98,15 @@ func aggregate(ctx context.Context, url string, request any) ([]byte, error) {
 	}
 	return nil, last
 }
+
+// initializeManager deploys the ValidatorManager of an L1 and loads the first
+// validator set into it. From then on the contract controls the validator set:
+// the owner adds and removes validators (Proof of Authority).
+//
+// The contract must land on the address named in the conversion, so the EWOQ
+// account deploys the ValidatorMessages library first and the manager second.
+// initializeValidatorSet needs proof of the conversion: a Warp message from
+// the P-Chain, signed by the first validators of the L1.
 func initializeManager(ctx context.Context, uri, url, dir, aggregator string) error {
 	var c Chain
 	b, e := os.ReadFile(filepath.Join(dir, "chain.json"))
@@ -132,6 +153,10 @@ func initializeManager(ctx context.Context, uri, url, dir, aggregator string) er
 	if manager != common.HexToAddress(conversion.Manager) {
 		return fmt.Errorf("manager address differs from conversion: %s", manager)
 	}
+	// The EWOQ account owns the manager. Per churn period of 1 second, the
+	// validator set may change by at most 20% of its total weight; 20 is the
+	// maximum the contract accepts. The bootstrap validators of a PoS L1 are
+	// sized for this limit (see src/l1/launcher.star).
 	settings := struct {
 		Admin                  common.Address
 		SubnetID               [32]byte
@@ -169,7 +194,7 @@ func initializeManager(ctx context.Context, uri, url, dir, aggregator string) er
 		if e != nil {
 			return e
 		}
-		unsigned, e := warp.NewUnsignedMessage(88888, ids.Empty, addressed.Bytes())
+		unsigned, e := warp.NewUnsignedMessage(networkID, ids.Empty, addressed.Bytes())
 		if e != nil {
 			return e
 		}

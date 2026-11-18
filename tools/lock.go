@@ -7,8 +7,9 @@ import (
 	"syscall"
 )
 
-// All writers use the same local fixture account. Serialize across state directories.
-// Host callers and the helper container are separate domains: use one helper per enclave.
+// writerLock lets only one lab command run at a time. Every command signs with
+// the same EWOQ account, and two commands at once would reuse a nonce. The
+// lock is a file in the tools container, so it covers one enclave.
 func writerLock() (func(), error) {
 	f, e := os.OpenFile(filepath.Join(os.TempDir(), "avalanche-lab-writer.lock"), os.O_CREATE|os.O_RDWR, 0600)
 	if e != nil {

@@ -1,0 +1,142 @@
+# Proof of Stake (PoS) devnet: the complete network, and the package default.
+#
+#   kurtosis run --enclave avalanche . --args-file examples/pos.yml
+#
+# It runs 9 nodes and 4 support services, and takes about 3 minutes:
+#
+#   primary-0 .. primary-2             Primary Network validators (P-, X-, C-Chain)
+#   l1-0-validator-0 .. -4             L1 validators, each with a stake
+#   l1-0-rpc-0                         L1 RPC node
+#   l1-0-aggregator, l1-0-relayer      Signature aggregator and ICM relayer
+#   prometheus                         Metrics
+#   tools                              Signs the setup transactions
+#
+# During setup it also runs 4 temporary nodes, l1-0-bootstrap-0 .. -3, and
+# removes them (see "Staking" below).
+#
+# Every value in this file is the default: `kurtosis run .` without an
+# arguments file starts the same network. The file names every argument;
+# `images` is a comment at the end. docs/config/ describes the AvalancheGo
+# options that the `*_config` and `genesis` mappings accept.
+
+# ── Primary Network ──────────────────────────────────────────────────────────
+# The local stand-in for Avalanche Mainnet. Its validators run three chains:
+#   P-Chain  staking, validator sets, and the registry of every L1
+#   X-Chain  creation and transfer of assets
+#   C-Chain  EVM smart contracts (chain ID 88888, gas token AVAX)
+# The pre-funded EWOQ account holds AVAX on all three chains (see README.md).
+primary_network:
+  # Number of validators (2 to 100). Three keep the network live if one stops.
+  validator_count: 3
+  # AvalancheGo flags of these validators: docs/config/node.yml.
+  node_config: {}
+  # P-Chain and X-Chain configs: docs/config/p-x-chain.yml.
+  p_chain_config: {}
+  x_chain_config: {}
+  # C-Chain config: docs/config/c-chain.yml.
+  c_chain_config: {}
+
+# ── Avalanche L1 ─────────────────────────────────────────────────────────────
+# A Subnet-EVM blockchain with its own validators and its own native token.
+# The package registers it on the P-Chain of the Primary Network above.
+l1:
+  # Number of identical L1s (1 to 100). L1 number n is named `l1-<n>`.
+  count: 1
+
+  # Staking. `validator_management` selects how validators join the L1:
+  #
+  #   native-pos  Validators lock the L1's native token, the token that also
+  #               pays gas. Contract: NativeTokenStakingManager.
+  #   erc20-pos   Validators lock STAKE, an ERC-20 token that the package
+  #               deploys on the L1. Gas is still paid in the native token.
+  #               Contract: ERC20TokenStakingManager.
+  #   poa         No staking: the contract owner manages validators
+  #               (see examples/poa.yml).
+  #
+  # The package stakes 1 token for each validator from the EWOQ account. The
+  # staking rules are fixed in tools/staking.go:
+  #
+  #   stake per validator         minimum 1 token, maximum 10 tokens
+  #   minimum stake duration      60 seconds
+  #   delegation                  allowed; stake plus delegations at most 4 times
+  #                               the stake; minimum delegation fee 0.01%
+  #   rewards                     none (the reward rate is 0)
+  #   validator set changes       at most 20% of the total stake per second
+  #
+  # A validator named at L1 creation cannot hold a stake. The package therefore
+  # creates the L1 with temporary "bootstrap" validators, stakes the permanent
+  # validators, and removes the bootstrap validators. One validator needs 20
+  # bootstrap nodes, five need 4, twenty or more need 1.
+  #
+  # Each validator also pays the P-Chain a continuous fee in AVAX. The package
+  # funds every validator with 100 AVAX on the P-Chain for this fee.
+  validator_management: native-pos
+
+  # Validators (1 to 100) and non-validating RPC nodes (1 to 100), per L1.
+  validator_count: 5
+  rpc_count: 1
+
+  # EVM chain ID of the first L1; L1 number n uses `chain_id + n`.
+  # 88888 belongs to the C-Chain.
+  chain_id: 77777
+
+  # Gas fees and token supply. The mapping is merged into the Subnet-EVM
+  # genesis in static_files/l1-genesis.json. Reference: docs/config/l1-genesis.yml.
+  genesis:
+    config:
+      # Every transaction pays gas in the L1's native token.
+      feeConfig:
+        gasLimit: 20000000        # Maximum gas of one block.
+        minBaseFee: 1000000000    # Lowest gas price, in wei: 1 gwei.
+        targetGas: 100000000      # Gas use per 10 seconds above which the price rises.
+        baseFeeChangeDenominator: 48  # A larger value makes the price change slower.
+        # The last four fields had a function before the Granite upgrade, which
+        # is active on this devnet. They have no effect now, but Subnet-EVM
+        # still requires them. A block follows its parent after about 2 seconds
+        # at the earliest; `initialMinDelayMS` in docs/config/l1-genesis.yml
+        # sets this delay.
+        targetBlockRate: 2
+        minBlockGasCost: 0
+        maxBlockGasCost: 10000000
+        blockGasCostStep: 500000
+    # Accounts that hold the native token at genesis, in wei (1 token = 10^18
+    # wei). The EWOQ account holds 1,000,000 tokens. With `bridge: true`, the
+    # bridge backs this total supply with collateral on the C-Chain.
+    alloc:
+      "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC":
+        balance: "0xd3c21bcecceda1000000"
+
+  # Subnet config, for example the consensus parameters of this L1:
+  # docs/config/l1-subnet.yml.
+  subnet_config: {}
+  # Subnet-EVM chain config, for example RPC APIs and pruning:
+  # docs/config/l1-chain.yml.
+  chain_config: {}
+  # AvalancheGo flags of the L1 validators and RPC nodes: docs/config/node.yml.
+  node_config: {}
+
+# ── All nodes ────────────────────────────────────────────────────────────────
+# AvalancheGo flags of every node. A `node_config` inside `primary_network` or
+# `l1` takes precedence for the nodes of that section.
+node_config: {}
+
+# ── Optional services ────────────────────────────────────────────────────────
+# Token bridge between the C-Chain and each L1, built on Avalanche ICM. The
+# package deploys CASH, an ERC-20 token, on the C-Chain. CASH that is locked on
+# the C-Chain becomes the native token of the L1, 1:1. An ICM relayer delivers
+# the messages. The package bridges 7 CASH as a test.
+bridge: true
+
+# Prometheus, which scrapes the metrics of every node every 5 seconds.
+metrics: true
+
+# ── Images ───────────────────────────────────────────────────────────────────
+# Container images. Each default is pinned by digest in
+# src/config/constants.star. Set a key to test another version, for example:
+# images:
+#   avalanchego: avaplatform/avalanchego:v1.15.0   # Primary Network validators
+#   subnet_evm: avaplatform/subnet-evm:v1.15.0     # L1 nodes (AvalancheGo + Subnet-EVM)
+#   signature_aggregator: avaplatform/signature-aggregator:v0.6.0
+#   icm_relayer: avaplatform/icm-relayer:v1.8.2
+#   prometheus: prom/prometheus:v3.2.1
+#   tools: avalanche-tools:local                   # Empty builds ./tools

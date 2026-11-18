@@ -1,7 +1,60 @@
-# Small, faster alternative: no temporary staking bootstrap fleet.
-primary_count: 2
-validator_count: 1
-rpc_count: 1
-staking: poa
+# Proof of Authority (PoA) devnet: the smallest and fastest network.
+#
+#   kurtosis run --enclave avalanche . --args-file examples/poa.yml
+#
+# It starts 4 nodes and 2 support services, and takes about one minute:
+#
+#   primary-0, primary-1    Primary Network validators (P-, X-, and C-Chain)
+#   l1-0-validator-0        L1 validator
+#   l1-0-rpc-0              L1 RPC node
+#   l1-0-aggregator         Signature aggregator
+#   tools                   Signs the setup transactions
+#
+# An argument that is not set here keeps its default. examples/pos.yml names
+# every argument with its default. docs/config/ describes the AvalancheGo
+# options.
+
+# The Primary Network is the local stand-in for Avalanche Mainnet.
+primary_network:
+  # Two validators are the minimum.
+  validator_count: 2
+
+# The Avalanche L1: a Subnet-EVM blockchain attached to the Primary Network.
+l1:
+  # Proof of Authority: the owner of the ValidatorManager contract adds and
+  # removes validators. Nobody stakes a token, and validators earn no reward.
+  # The owner is the pre-funded EWOQ account (see README.md).
+  validator_management: poa
+  validator_count: 1
+  rpc_count: 1
+
+  # EVM chain ID that wallets and tools use for the L1.
+  chain_id: 77777
+
+  # Gas fees. The L1 has its own native token, and every transaction pays gas
+  # in it. This block repeats the defaults of static_files/l1-genesis.json.
+  genesis:
+    config:
+      feeConfig:
+        gasLimit: 20000000        # Maximum gas of one block.
+        minBaseFee: 1000000000    # Lowest gas price, in wei: 1 gwei.
+        targetGas: 100000000      # Gas use per 10 seconds above which the price rises.
+        baseFeeChangeDenominator: 48  # A larger value makes the price change slower.
+        # The last four fields had a function before the Granite upgrade, which
+        # is active on this devnet. They have no effect now, but Subnet-EVM
+        # still requires them. A block follows its parent after about 2 seconds
+        # at the earliest; `initialMinDelayMS` in docs/config/l1-genesis.yml
+        # sets this delay.
+        targetBlockRate: 2
+        minBlockGasCost: 0
+        maxBlockGasCost: 10000000
+        blockGasCostStep: 500000
+    # Accounts that hold the native token at genesis. Without `alloc`, the EWOQ
+    # account holds 1,000,000 tokens. Balances are in wei (1 token = 10^18 wei).
+    # alloc:
+    #   "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC":
+    #     balance: "0xd3c21bcecceda1000000"
+
+# No token bridge to the C-Chain, and no Prometheus.
 bridge: false
 metrics: false

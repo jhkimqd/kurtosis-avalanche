@@ -29,6 +29,9 @@ import (
 	"github.com/ava-labs/libevm/crypto"
 )
 
+// Journal is the on-disk record of one transaction. It is written before the
+// transaction is sent, so a rerun sends the same signed bytes again instead of
+// building a second transaction.
 type Journal struct {
 	Version     int    `json:"version"`
 	Fingerprint string `json:"fingerprint"`
@@ -37,6 +40,9 @@ type Journal struct {
 	State       string `json:"state"`
 }
 
+// atomicJSON writes v to path so that a crash leaves either the old or the new
+// file, never a partial one: write a temporary file, sync it, rename it, and
+// sync the directory.
 func atomicJSON(path string, v any) error {
 	b, e := json.MarshalIndent(v, "", "  ")
 	if e != nil {
@@ -71,12 +77,22 @@ func atomicJSON(path string, v any) error {
 	defer d.Close()
 	return d.Sync()
 }
+
+// pWallet returns a P-Chain wallet for the EWOQ key. The wallet also loads the
+// given subnets, which the EWOQ key owns.
 func pWallet(ctx context.Context, uri string, subnets ...ids.ID) (pwallet.Wallet, error) {
 	if err := localOnly(ctx, uri); err != nil {
 		return nil, err
 	}
 	return primary.MakePWallet(ctx, uri, secp256k1fx.NewKeychain(genesis.EWOQKey), primary.WalletConfig{SubnetIDs: subnets})
 }
+
+// issue sends one P-Chain transaction exactly once and waits until the chain
+// commits it.
+//
+// path is the journal file. input describes the operation: its hash is stored
+// in the journal, so a journal is never reused for a different operation.
+// build creates the unsigned transaction; it runs on the first attempt only.
 func issue(ctx context.Context, uri, path string, input any, build func() (pwallet.Wallet, txs.UnsignedTx, error)) (ids.ID, error) {
 	identity, e := deploymentIdentity(ctx, uri)
 	if e != nil {
@@ -162,7 +178,14 @@ func issue(ctx context.Context, uri, path string, input any, build func() (pwall
 		}
 	}
 }
-func create(ctx context.Context, uri, dir, genesisPath, chainID, overrides string, bridge bool) error {
+
+// create registers a new subnet and its Subnet-EVM blockchain on the P-Chain.
+//
+// The genesis is the base file merged with the user overrides, with the chain
+// ID of the package. With the bridge, the genesis also lets the future
+// NativeTokenRemote contract mint the native token. create writes genesis.json,
+// the config files of the L1, and chain.json with the new IDs.
+func create(ctx context.Context, uri, dir, genesisPath, chainID, overrides string, bridge bool, chainConfig, subnetConfig string) error {
 	if e := localOnly(ctx, uri); e != nil {
 		return e
 	}
@@ -182,9 +205,21 @@ func create(ctx context.Context, uri, dir, genesisPath, chainID, overrides strin
 	if e = json.Unmarshal([]byte(overrides), &extra); e != nil {
 		return e
 	}
+	if e = normalizeAlloc(g); e != nil {
+		return e
+	}
+	if e = normalizeAlloc(extra); e != nil {
+		return e
+	}
 	mergeJSON(g, extra)
-	config := g["config"].(map[string]any)
+	config, ok := g["config"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("genesis config must be an object")
+	}
 	config["chainId"] = evmID
+	if e = setHeaderGasLimit(g, config); e != nil {
+		return e
+	}
 	if bridge {
 		remote := crypto.CreateAddress(crypto.PubkeyToAddress(devKey(10).PublicKey), 0)
 		config["contractNativeMinterConfig"] = map[string]any{"blockTimestamp": 0, "enabledAddresses": []string{remote.Hex()}}
@@ -219,8 +254,43 @@ func create(ctx context.Context, uri, dir, genesisPath, chainID, overrides strin
 	if e != nil {
 		return e
 	}
+	if e = writeL1Config(filepath.Join(dir, "config"), subnet.String(), chain.String(), chainConfig, subnetConfig); e != nil {
+		return e
+	}
 	return save(filepath.Join(dir, "chain.json"), map[string]any{"version": 1, "subnet_id": subnet.String(), "blockchain_id": chain.String(), "genesis_sha256": fmt.Sprintf("%x", sha256.Sum256(data))})
 }
+
+// writeL1Config writes the config files that every node of an L1 mounts:
+//
+//	chains/<blockchain-id>/config.json   Subnet-EVM chain config
+//	subnets/<subnet-id>.json             subnet config
+//
+// AvalancheGo finds both files by ID, and the IDs exist only after the create
+// transactions. Kurtosis cannot put such a late value into a file name, so the
+// files are written here.
+func writeL1Config(dir, subnetID, blockchainID, chainConfig, subnetConfig string) error {
+	for path, content := range map[string]string{
+		filepath.Join(dir, "chains", blockchainID, "config.json"): chainConfig,
+		filepath.Join(dir, "subnets", subnetID+".json"):           subnetConfig,
+	} {
+		var object map[string]any
+		if e := json.Unmarshal([]byte(content), &object); e != nil {
+			return fmt.Errorf("%s must be a JSON object: %w", filepath.Base(path), e)
+		}
+		if e := save(path, object); e != nil {
+			return e
+		}
+	}
+	return nil
+}
+
+// convert turns the subnet into an L1 with a ConvertSubnetToL1Tx.
+//
+// args: primary URI, state directory, blockchain that hosts the
+// ValidatorManager ("self" is the L1), ValidatorManager address, directory of
+// network.json, validator weight, and the node indexes of the first validators.
+// Each first validator gets that weight and 100 AVAX on the P-Chain, from
+// which the P-Chain takes its continuous validator fee.
 func convert(ctx context.Context, args []string) error {
 	uri, dir, managerChain, manager, fixture := args[0], args[1], args[2], args[3], args[4]
 	if e := localOnly(ctx, uri); e != nil {
@@ -298,8 +368,47 @@ func convert(ctx context.Context, args []string) error {
 	return save(filepath.Join(dir, "conversion.json"), map[string]any{"tx_id": id.String(), "manager_chain": cid.String(), "manager": manager, "validators": validators})
 }
 
+// setHeaderGasLimit copies config.feeConfig.gasLimit into the gasLimit of the
+// genesis header. Subnet-EVM refuses a genesis in which the two differ, and by
+// then the chain exists on the P-Chain and cannot be changed.
+func setHeaderGasLimit(g, config map[string]any) error {
+	fee, _ := config["feeConfig"].(map[string]any)
+	limit, ok := fee["gasLimit"].(float64)
+	if !ok || limit < 1 || limit != float64(uint64(limit)) {
+		return fmt.Errorf("genesis config.feeConfig.gasLimit must be a positive whole number")
+	}
+	g["gasLimit"] = fmt.Sprintf("0x%x", uint64(limit))
+	return nil
+}
+
+// normalizeAlloc rewrites the account keys of a genesis to lowercase hex
+// without the 0x prefix. An override then merges into the base entry of the
+// same address instead of adding a second entry in another spelling.
+func normalizeAlloc(g map[string]any) error {
+	alloc, ok := g["alloc"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	normalized := make(map[string]any, len(alloc))
+	for address, account := range alloc {
+		key := strings.TrimPrefix(strings.ToLower(address), "0x")
+		if _, duplicate := normalized[key]; duplicate {
+			return fmt.Errorf("genesis alloc lists account %s twice", address)
+		}
+		normalized[key] = account
+	}
+	g["alloc"] = normalized
+	return nil
+}
+
+// mergeJSON copies src into dst. Nested objects merge key by key; any other
+// value, including a list, replaces the value in dst. A null value changes
+// nothing: YAML reads a key that holds only comments as null.
 func mergeJSON(dst, src map[string]any) {
 	for key, value := range src {
+		if value == nil {
+			continue
+		}
 		child, ok := value.(map[string]any)
 		existing, exists := dst[key].(map[string]any)
 		if ok && exists {

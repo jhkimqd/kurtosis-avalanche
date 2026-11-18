@@ -1,0 +1,4 @@
+# CI coverage: two L1s, each with its own validators, aggregator, and bridge.
+l1:
+  count: 2
+  validator_count: 4

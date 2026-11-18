@@ -1,0 +1,4 @@
+# CI coverage: validators stake the STAKE ERC-20 token instead of the native token.
+l1:
+  validator_management: erc20-pos
+  validator_count: 4

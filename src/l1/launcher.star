@@ -1,203 +1,280 @@
-commands = import_module("../tools.star")
+"""One Avalanche L1: a Subnet-EVM blockchain with its own validators.
+
+The steps follow the L1 lifecycle of ACP-77:
+
+  1. Create a subnet and its blockchain on the P-Chain.
+  2. Start nodes that track the subnet.
+  3. Convert the subnet to an L1. This names the first validators and the
+     ValidatorManager contract that controls the validator set from then on.
+  4. Deploy and initialize the ValidatorManager on the L1.
+  5. Optional: deploy the token bridge.
+  6. PoS only: move the validator set from the first validators to staked ones.
+  7. Verify the L1 with test transactions.
+"""
+
+constants = import_module("../config/constants.star")
 bridge = import_module("./bridge.star")
-icm = import_module("../services/icm.star")
-nodes = import_module("../node/launcher.star")
+node_launcher = import_module("../node/launcher.star")
+signature_aggregator = import_module("./signature_aggregator.star")
+tools = import_module("../tools/launcher.star")
 
 
-def launch(plan, cfg, fixture, bootstrap, uri, targets):
-    chains = []
-    fleet_size = cfg["fleet_size"]
-    for chain_index in range(cfg["l1_count"]):
-        name = "l1-{}".format(chain_index)
-        first_index = cfg["primary_count"] + chain_index * fleet_size
-        state = "/state/" + name
-        commands.execute(
+def launch(plan, args, network, primary, l1_index, first_node_index):
+    """Deploys one L1 and returns its context.
+
+    Args:
+        args: parsed package arguments.
+        network: struct from `tools.generate_network`.
+        primary: context of the Primary Network (src/primary_network/launcher.star).
+        l1_index: number of this L1, starting at 0.
+        first_node_index: first generated node identity reserved for this L1.
+    Returns:
+        struct(nodes, manifest): the permanent nodes of the L1, and a dict of
+        the L1's IDs, contract addresses, and RPC URLs.
+    """
+    l1_args = args["l1"]
+    name = generate_name(l1_index)
+    evm_chain_id = l1_args["chain_id"] + l1_index
+    mode = l1_args["validator_management"]
+    is_pos = mode != constants.VALIDATOR_MANAGEMENT.poa
+    # `lab` keeps the journals and results of this L1 in its own directory.
+    state_path = "{}/{}".format(tools.STATE_PATH, name)
+
+    # Node identities of this L1, in the order of `node_count`.
+    validator_count = l1_args["validator_count"]
+    rpc_count = l1_args["rpc_count"]
+    validator_indexes = [first_node_index + i for i in range(validator_count)]
+    rpc_indexes = [validator_indexes[-1] + 1 + i for i in range(rpc_count)]
+    bootstrap_indexes = [
+        rpc_indexes[-1] + 1 + i
+        for i in range(bootstrap_validator_count(validator_count) if is_pos else 0)
+    ]
+
+    # 1. Create the subnet and the blockchain. The blockchain ID is the hash
+    #    of the transaction, so it is known only now.
+    tools.run(
+        plan,
+        "Creating the subnet and blockchain of {} on the P-Chain".format(name),
+        [
+            "lab",
+            "create",
+            primary.rpc_url,
+            state_path,
+            tools.STATIC_FILES_PATH + "/l1-genesis.json",
+            str(evm_chain_id),
+            json.encode(l1_args["genesis"]),
+            json.encode(args["bridge"]),
+            json.encode(l1_args["chain_config"]),
+            json.encode(l1_args["subnet_config"]),
+        ],
+    )
+    ids = tools.read_json(
+        plan,
+        state_path + "/chain.json",
+        {"subnet_id": ".subnet_id", "blockchain_id": ".blockchain_id"},
+    )
+    l1 = struct(
+        subnet_id=ids["subnet_id"],
+        blockchain_id=ids["blockchain_id"],
+        # AvalancheGo finds the chain config and the subnet config by ID. Only
+        # `lab create` knows the IDs, so it wrote the files with their names.
+        config_artifact=plan.store_service_files(
+            name=name + "-config",
+            service_name=tools.SERVICE_NAME,
+            src=state_path + "/config",
+        ),
+    )
+
+    # 2. Start the first validators and the RPC nodes. A PoA L1 starts with its
+    #    permanent validators. A PoS L1 starts with temporary bootstrap
+    #    validators, because a validator named at conversion holds no stake.
+    def launch_node(role, number, index):
+        return node_launcher.launch(
             plan,
-            [
-                "lab",
-                "create",
-                uri,
-                state,
-                "/fixtures/l1-genesis.json",
-                str(cfg["chain_id_start"] + chain_index),
-                json.encode(cfg["l1_genesis"]),
-                json.encode(cfg["bridge"]),
-            ],
+            args,
+            network,
+            name="{}-{}-{}".format(name, role, number),
+            role=role,
+            index=index,
+            bootstrap_peer=primary.bootstrap_peer,
+            l1=l1,
         )
-        values = commands.execute(
-            plan,
-            ["cat", state + "/chain.json"],
-            {"subnet": "fromjson | .subnet_id", "chain": "fromjson | .blockchain_id"},
+
+    if is_pos:
+        initial_role = constants.NODE_ROLE.bootstrap
+        initial_indexes = bootstrap_indexes
+        initial_weight = bootstrap_validator_weight(validator_count)
+    else:
+        initial_role = constants.NODE_ROLE.validator
+        initial_indexes = validator_indexes
+        initial_weight = constants.POA_VALIDATOR_WEIGHT
+    initial_nodes = [
+        launch_node(initial_role, number, index)
+        for number, index in enumerate(initial_indexes)
+    ]
+    rpc_nodes = [
+        launch_node(constants.NODE_ROLE.rpc, number, index)
+        for number, index in enumerate(rpc_indexes)
+    ]
+    rpc_urls = [
+        "{}/ext/bc/{}/rpc".format(node.rpc_url, l1.blockchain_id) for node in rpc_nodes
+    ]
+    rpc_url = rpc_urls[0]
+
+    # 3. Convert the subnet to an L1. The chain produces blocks from here on.
+    tools.run(
+        plan,
+        "Converting {} to an L1 with {} validators".format(name, len(initial_indexes)),
+        [
+            "lab",
+            "convert",
+            primary.rpc_url,
+            state_path,
+            "self",  # The ValidatorManager lives on the L1 itself.
+            constants.VALIDATOR_MANAGER_ADDRESS,
+            tools.NETWORK_PATH,
+            str(initial_weight),
+        ]
+        + [str(index) for index in initial_indexes],
+    )
+    _wait_for_rpc(plan, name, rpc_url, evm_chain_id)
+
+    # 4. Deploy the ValidatorManager and load the first validator set into it.
+    #    The first validators of the L1 sign a Warp message from the P-Chain
+    #    that proves the conversion.
+    aggregator_url = signature_aggregator.launch(
+        plan, args, name, l1.subnet_id, primary.rpc_url
+    )
+    tools.run(
+        plan,
+        "Deploying the ValidatorManager of {}".format(name),
+        ["lab", "manager", primary.rpc_url, rpc_url, state_path, aggregator_url],
+    )
+    manifest = {
+        "name": name,
+        "subnet_id": l1.subnet_id,
+        "blockchain_id": l1.blockchain_id,
+        "evm_chain_id": evm_chain_id,
+        "rpc_urls": rpc_urls,
+        "validator_management": mode,
+        "validator_manager_address": constants.VALIDATOR_MANAGER_ADDRESS,
+    }
+
+    # 5. Deploy the token bridge between the C-Chain and the L1.
+    if args["bridge"]:
+        manifest["bridge"] = bridge.launch(
+            plan, args, name, state_path, primary.rpc_url, rpc_url
         )
-        subnet, chain = values["extract.subnet"], values["extract.chain"]
-        initial_count = cfg["validator_count"] if cfg["staking"] == "poa" else 20
-        initial_role = "validator" if cfg["staking"] == "poa" else "bootstrap"
-        validators = []
-        for i in range(initial_count):
-            validators.append(
-                nodes.launch(
-                    plan,
-                    cfg,
-                    fixture,
-                    first_index + i,
-                    "{}-{}-{}".format(name, initial_role, i),
-                    bootstrap,
-                    subnet,
-                    chain,
-                    role="validator",
-                )
-            )
-        if cfg["staking"] == "poa":
-            for i, validator in enumerate(validators):
-                targets.append(
-                    {
-                        "targets": ["{}:9650".format(validator.ip_address)],
-                        "labels": {
-                            "role": "validator",
-                            "node": "{}-validator-{}".format(name, i),
-                        },
-                    }
-                )
-        rpc_urls = []
-        for i in range(cfg["rpc_count"]):
-            rpc_name = "{}-rpc-{}".format(name, i)
-            rpc_node = nodes.launch(
+
+    # 6. Move a PoS L1 to staked validators.
+    validator_nodes = initial_nodes
+    if is_pos:
+        validator_nodes = []
+        for number, index in enumerate(validator_indexes):
+            node = launch_node(constants.NODE_ROLE.validator, number, index)
+            validator_nodes.append(node)
+            # The first call also deploys the staking manager and hands it the
+            # ownership of the ValidatorManager. Each call stakes one validator.
+            tools.run(
                 plan,
-                cfg,
-                fixture,
-                first_index + initial_count + i,
-                rpc_name,
-                bootstrap,
-                subnet,
-                chain,
-                role="rpc",
-            )
-            targets.append(
-                {
-                    "targets": ["{}:9650".format(rpc_node.ip_address)],
-                    "labels": {"role": "rpc", "node": rpc_name},
-                }
-            )
-            rpc_urls.append(
-                "http://{}:9650/ext/bc/{}/rpc".format(rpc_node.ip_address, chain)
-            )
-        commands.execute(
-            plan,
-            [
-                "lab",
-                "convert",
-                uri,
-                state,
-                "self",
-                "0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25",
-                "/state/network",
-                "1000000" if cfg["staking"] == "poa" else "50000",
-            ]
-            + [str(first_index + i) for i in range(initial_count)],
-        )
-        rpc = rpc_urls[0]
-        commands.execute(
-            plan, ["lab", "wait", rpc, str(cfg["chain_id_start"] + chain_index)]
-        )
-        aggregator = icm.launch_aggregator(plan, cfg, name, uri, subnet)
-        commands.execute(
-            plan,
-            [
-                "lab",
-                "manager",
-                uri,
-                rpc,
-                state,
-                "http://{}:8080".format(aggregator.ip_address),
-            ],
-        )
-        manager_info = commands.execute(
-            plan, ["cat", state + "/manager.json"], {"address": "fromjson | .address"}
-        )
-        staking_address = ""
-        bridge_addresses = {}
-        if cfg["bridge"]:
-            bridge_addresses = bridge.launch(plan, cfg, name, uri, rpc, state)
-        if cfg["staking"] != "poa":
-            final_indexes = []
-            for i in range(cfg["validator_count"]):
-                index = first_index + initial_count + cfg["rpc_count"] + i
-                final_indexes.append(str(index))
-                final_name = "{}-validator-{}".format(name, i)
-                validator = nodes.launch(
-                    plan,
-                    cfg,
-                    fixture,
-                    index,
-                    final_name,
-                    bootstrap,
-                    subnet,
-                    chain,
-                    role="validator",
-                )
-                targets.append(
-                    {
-                        "targets": ["{}:9650".format(validator.ip_address)],
-                        "labels": {"role": "validator", "node": final_name},
-                    }
-                )
-                commands.execute(
-                    plan,
-                    [
-                        "lab",
-                        "migrate",
-                        uri,
-                        rpc,
-                        state,
-                        "http://{}:8080".format(aggregator.ip_address),
-                        str(index),
-                        cfg["staking"],
-                    ],
-                )
-            commands.execute(
-                plan,
+                "Staking {} as a validator".format(node.name),
                 [
                     "lab",
-                    "finalize-pos",
-                    uri,
-                    rpc,
-                    state,
-                    "http://{}:8080".format(aggregator.ip_address),
-                    cfg["staking"],
-                ]
-                + final_indexes,
+                    "migrate",
+                    primary.rpc_url,
+                    rpc_url,
+                    state_path,
+                    aggregator_url,
+                    str(index),
+                    mode,
+                ],
             )
-            staking_info = commands.execute(
-                plan,
-                ["cat", state + "/staking.json"],
-                {"address": "fromjson | .staking"},
-            )
-            staking_address = staking_info["extract.address"]
-            for i in range(initial_count):
-                plan.remove_service(name="{}-bootstrap-{}".format(name, i))
-        if cfg["bridge"]:
-            commands.execute(plan, ["lab", "bridge-smoke", uri, rpc, state])
-        commands.execute(plan, ["lab", "run", rpc, str(cfg["smoke_transactions"])])
-        for endpoint in rpc_urls:
-            commands.execute(
-                plan,
-                ["lab", "wait", endpoint, str(cfg["chain_id_start"] + chain_index)],
-            )
-        commands.execute(plan, ["lab", "verify-rpcs"] + rpc_urls)
-        chains.append(
-            {
-                "bridge": bridge_addresses,
-                "evm_chain_id": cfg["chain_id_start"] + chain_index,
-                "validator_manager": manager_info["extract.address"],
-                "staking_manager": staking_address,
-                "name": name,
-                "subnet_id": subnet,
-                "blockchain_id": chain,
-                "rpc": rpc,
-                "rpcs": rpc_urls,
-                "validator_management": cfg["staking"],
-                "fully_pos": cfg["staking"] != "poa",
-                "rpc_node_promoted": False,
-            }
+        tools.run(
+            plan,
+            "Removing the bootstrap validators of {}".format(name),
+            [
+                "lab",
+                "finalize-pos",
+                primary.rpc_url,
+                rpc_url,
+                state_path,
+                aggregator_url,
+                mode,
+            ]
+            + [str(index) for index in validator_indexes],
         )
-    return chains
+        for node in initial_nodes:
+            plan.remove_service(name=node.name)
+        manifest["staking_manager_address"] = tools.read_json(
+            plan, state_path + "/staking.json", {"address": ".staking"}
+        )["address"]
+
+    # 7. Verify: bridge a token, send transfers, compare the RPC nodes.
+    if args["bridge"]:
+        bridge.verify(plan, name, state_path, primary.rpc_url, rpc_url)
+    tools.run(
+        plan,
+        "Sending {} test transfers on {}".format(
+            constants.SMOKE_TRANSACTION_COUNT, name
+        ),
+        ["lab", "run", rpc_url, str(constants.SMOKE_TRANSACTION_COUNT)],
+    )
+    for url in rpc_urls:
+        _wait_for_rpc(plan, name, url, evm_chain_id)
+    tools.run(
+        plan,
+        "Checking that the RPC nodes of {} agree".format(name),
+        ["lab", "verify-rpcs"] + rpc_urls,
+    )
+
+    return struct(nodes=validator_nodes + rpc_nodes, manifest=manifest)
+
+
+def generate_name(l1_index):
+    """Returns the name of an L1, which also starts the names of its services."""
+    return "l1-{}".format(l1_index)
+
+
+def node_count(l1_args):
+    """Returns how many node identities one L1 needs, temporary nodes included."""
+    count = l1_args["validator_count"] + l1_args["rpc_count"]
+    if l1_args["validator_management"] != constants.VALIDATOR_MANAGEMENT.poa:
+        count += bootstrap_validator_count(l1_args["validator_count"])
+    return count
+
+
+# ── PoS bootstrap validators ─────────────────────────────────────────────────
+#
+# The validators named at conversion hold no stake, so a PoS L1 replaces them:
+# each permanent validator stakes and joins, then each bootstrap validator
+# leaves. The ValidatorManager limits every such change to 20% of the total
+# weight (the churn limit, set in tools/manager.go). The two functions below
+# pick the smallest bootstrap set that keeps every step within that limit. For
+# N permanent validators of weight S, K bootstrap validators of weight W must
+# satisfy:
+#
+#   first join:   S <= 20% of K * W          so  K * W >= 5 * S
+#   last removal: W <= 20% of (N * S + W)    so  W <= N * S / 4
+#
+# W = N * S / 4 and K = ceil(20 / N) satisfy both: 20 nodes for one validator,
+# 4 nodes for five validators, 1 node for twenty or more.
+
+
+def bootstrap_validator_count(validator_count):
+    """Returns the number of temporary bootstrap validators of a PoS L1."""
+    return (20 + validator_count - 1) // validator_count
+
+
+def bootstrap_validator_weight(validator_count):
+    """Returns the P-Chain weight of each bootstrap validator of a PoS L1."""
+    return validator_count * constants.POS_VALIDATOR_WEIGHT // 4
+
+
+def _wait_for_rpc(plan, l1_name, rpc_url, evm_chain_id):
+    tools.run(
+        plan,
+        "Waiting for {} to serve chain ID {} of {}".format(
+            rpc_url, evm_chain_id, l1_name
+        ),
+        ["lab", "wait", rpc_url, str(evm_chain_id)],
+    )
