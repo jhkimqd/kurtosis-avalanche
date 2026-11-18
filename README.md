@@ -8,31 +8,48 @@ The package registers each L1 and its validators, supports Proof of Authority an
 
 ## Network architecture
 
-The L1 group repeats for each configured L1. Validator and RPC node counts are configurable; the relayer and Prometheus are optional.
+The default Proof of Stake network ([examples/pos.yml](examples/pos.yml)) after setup. Each box is a container; temporary bootstrap validators are removed during setup.
 
 ```mermaid
 flowchart TB
     subgraph enclave["Kurtosis enclave"]
         direction TB
-        P["Primary Network validators<br/>P-Chain, X-Chain, C-Chain"]
-        subgraph l1["Each Avalanche L1"]
-            L["Subnet-EVM<br/>Validators and RPC nodes"]
-            A["Signature aggregator"]
-            B["ICM relayer<br/>bridge: true"]
+        subgraph primary["Primary Network: P-, X-, and C-Chain"]
+            direction LR
+            P0["primary-0"]
+            P1["primary-1"]
+            P2["primary-2"]
+            P0 ~~~ P1 ~~~ P2
         end
-        T["Tools<br/>Setup and checks"]
-        M["Prometheus<br/>metrics: true"]
+        subgraph l1["Avalanche L1"]
+            direction TB
+            subgraph validators["Subnet-EVM validators"]
+                direction LR
+                V0["l1-0-validator-0"]
+                V1["l1-0-validator-1"]
+                V2["l1-0-validator-2"]
+                V3["l1-0-validator-3"]
+                V4["l1-0-validator-4"]
+                V0 ~~~ V1 ~~~ V2 ~~~ V3 ~~~ V4
+            end
+            subgraph services["RPC and messaging"]
+                direction LR
+                R["l1-0-rpc-0<br/>RPC node"]
+                A["l1-0-aggregator<br/>Signature aggregator"]
+                B["l1-0-relayer<br/>ICM relayer"]
+                R ~~~ A ~~~ B
+            end
+            validators ~~~ services
+        end
+        subgraph support["Support services"]
+            direction LR
+            T["tools<br/>Setup and checks"]
+            M["prometheus<br/>Metrics"]
+            T ~~~ M
+        end
+        primary ---|"registered on P-Chain"| l1
+        l1 ~~~ support
     end
-    L -->|"track P-Chain"| P
-    A -->|"collect signatures"| L
-    A -->|"read validator sets"| P
-    B <-->|"C-Chain bridge messages"| P
-    B <-->|"L1 bridge messages"| L
-    T -->|"setup transactions"| P
-    T -->|"setup transactions"| L
-    T -->|"request signatures"| A
-    M -.->|"scrape node metrics"| P
-    M -.->|"scrape node metrics"| L
 ```
 
 ## Requirements
