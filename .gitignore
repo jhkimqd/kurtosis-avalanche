@@ -4,3 +4,6 @@ contracts/out/
 contracts/cache/
 __pycache__/
 *.pyc
+
+# Local work plans.
+[Tt][Oo][Dd][Oo]*

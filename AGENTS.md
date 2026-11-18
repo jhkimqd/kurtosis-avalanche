@@ -143,4 +143,4 @@ These follow kurtosis-pos (`src/config/`, launcher contract) and kurtosis-cdk (`
 ## Out of scope
 
 - A connection to Fuji or Mainnet. The package is a closed local network.
-- Production key handling. `TODO-private-bls-signing.md` plans remote BLS signing; nothing of it is implemented.
+- Production key handling or remote BLS signing.
