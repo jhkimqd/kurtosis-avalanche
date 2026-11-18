@@ -22,8 +22,8 @@ if [[ "$mode" == check ]]; then
         echo 'Contract artifacts differ; inspect the source changes, then run scripts/check-contracts.sh refresh.' >&2
         exit 1
     fi
-    echo 'Verified all 11 contract artifacts and hashes.json against the pinned source build.'
+    echo 'Verified all contract artifacts and hashes.json against the pinned source build.'
 else
     cp "$work/rebuilt/"*.json "$root/static_files/contracts/"
-    echo 'Refreshed all 11 contract artifacts and hashes.json; review the diff before committing.'
+    echo 'Refreshed all contract artifacts and hashes.json; review the diff before committing.'
 fi

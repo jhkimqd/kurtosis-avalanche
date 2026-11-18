@@ -20,7 +20,7 @@ class ExportContractsTest(unittest.TestCase):
             for name in expected:
                 build = (
                     "contracts/out"
-                    if name in ("StakingToken", "CashToken")
+                    if name in ("StakingToken", "CashToken", "MessageReceiver")
                     else ".build/icm/out"
                 )
                 target = work / build / (name + ".sol") / (name + ".json")

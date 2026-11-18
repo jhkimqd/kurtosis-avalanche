@@ -20,7 +20,7 @@ for directory, names in (
             "NativeTokenRemote",
         ),
     ),
-    ("contracts/out", ("StakingToken", "CashToken")),
+    ("contracts/out", ("StakingToken", "CashToken", "MessageReceiver")),
 ):
     for name in names:
         source = pathlib.Path(directory) / (name + ".sol") / (name + ".json")
