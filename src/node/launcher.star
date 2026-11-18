@@ -68,10 +68,10 @@ def launch(plan, args, network, name, role, index, bootstrap_peer=None, l1=None)
         }
     )
 
-    files = {
-        NETWORK_PATH: network.artifact,
-        DATA_PATH: Directory(persistent_key=name + "-data"),
-    }
+    files = {NETWORK_PATH: network.artifact}
+    # A temporary node keeps its data in the container, which is removed with it.
+    if not is_bootstrap:
+        files[DATA_PATH] = Directory(persistent_key=name + "-data")
     config_files = {"node.json": flags}
     if is_primary:
         flags["chain-config-dir"] = CONFIG_PATH + "/chains"

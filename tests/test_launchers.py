@@ -77,6 +77,7 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(flags["track-subnets"], "subnet")
         self.assertTrue(flags["partial-sync-primary-network"])
         self.assertEqual(service.image, constants.IMAGES["subnet_evm"])
+        self.assertEqual(service.files["/data"].persistent_key, "l1-0-rpc-0-data")
 
     def test_managed_flags_win_and_are_all_rejected_as_overrides(self):
         sanity_check = starlark.load("src/config/sanity_check.star")
@@ -86,6 +87,8 @@ class NodeTest(unittest.TestCase):
         package_flags = set(files["node.json"]) - set(input_parser.DEFAULT_NODE_CONFIG)
         self.assertLessEqual(package_flags, set(sanity_check.MANAGED_NODE_FLAGS))
         self.assertEqual(service.max_memory, constants.BOOTSTRAP_NODE_MAX_MEMORY)
+        # A temporary node leaves no volume behind.
+        self.assertNotIn("/data", service.files)
 
 
 class BootstrapSizingTest(unittest.TestCase):
