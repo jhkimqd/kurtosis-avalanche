@@ -1,4 +1,4 @@
-module github.com/jihwankim/kurtosis-avalanche
+module github.com/ava-labs/kurtosis-avalanche
 
 go 1.25.10
 
