@@ -26,6 +26,7 @@ The ValidatorManager address is predicted before the contract exists, because th
 
 - The devnet exercises the same contracts and P-Chain transactions as a production L1, including the PoA to PoS migration.
 - A PoS L1 with few validators is slow to start: one validator needs 20 bootstrap nodes, five need 4.
+- The bootstrap nodes keep running for 65 seconds after their removal from the P-Chain. Without this wait, a defect of AvalancheGo v1.15.0 stops the permanent nodes from saving uptime data (ava-labs/avalanchego#6310, fixed upstream after v1.15.3). Remove the wait when the pinned release has the fix.
 - A genesis that gives the EWOQ account a nonce or code would move the manager address; `sanity_check.star` rejects it.
 - The staking rules (stake limits, durations, reward rate) are fixed in `tools/staking.go`. They are not arguments yet.
 

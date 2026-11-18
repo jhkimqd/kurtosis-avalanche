@@ -215,6 +215,17 @@ class DeploymentTest(unittest.TestCase):
             self.assertEqual(
                 order.index("l1-0-validator-{}".format(number)) + 1, order.index("stake-{}".format(index))
             )
+        # The bootstrap nodes keep running for one more uptime tracker period
+        # after their removal (see _wait_for_uptime_trackers).
+        steps = [
+            name if name == "remove_service" else " ".join(kwargs["recipe"].command[:2])
+            for name, kwargs in plan.calls
+            if name == "remove_service"
+            or (name == "exec" and kwargs["recipe"].command[0] == "sleep")
+            or (name == "exec" and kwargs["recipe"].command[1] == "finalize-pos")
+        ]
+        self.assertEqual(steps, ["lab finalize-pos", "sleep 65"] + ["remove_service"] * 4)
+        self.assertGreater(constants.UPTIME_TRACKER_SYNC_SECONDS, 60)
         # The permanent nodes get the full resource limits, the temporary ones less.
         services = plan.services()
         self.assertEqual(services["l1-0-validator-0"].max_memory, constants.NODE_MAX_MEMORY)

@@ -203,6 +203,7 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
             ]
             + [str(index) for index in validator_indexes],
         )
+        _wait_for_uptime_trackers(plan, name)
         for node in initial_nodes:
             plan.remove_service(name=node.name)
         manifest["staking_manager_address"] = tools.read_json(
@@ -268,6 +269,28 @@ def bootstrap_validator_count(validator_count):
 def bootstrap_validator_weight(validator_count):
     """Returns the P-Chain weight of each bootstrap validator of a PoS L1."""
     return validator_count * constants.POS_VALIDATOR_WEIGHT // 4
+
+
+def _wait_for_uptime_trackers(plan, l1_name):
+    """Waits until each node has dropped the removed bootstrap validators.
+
+    Subnet-EVM tracks the uptime of each validator. It reads the validator set
+    from the P-Chain once per minute; no API shows when it has done so.
+    AvalancheGo v1.15.0 has a defect: if a validator disconnects after the
+    P-Chain removed it, but before the node read that change, the node can no
+    longer save its uptime data, and it logs "failed to sync uptime tracker"
+    every minute. The bootstrap nodes therefore keep running for one more
+    period. Upstream fixed the defect after v1.15.3
+    (ava-labs/avalanchego#6310); remove this wait when the pinned release
+    contains the fix.
+    """
+    tools.run(
+        plan,
+        "Waiting {} seconds until the nodes of {} have dropped the removed validators".format(
+            constants.UPTIME_TRACKER_SYNC_SECONDS, l1_name
+        ),
+        ["sleep", str(constants.UPTIME_TRACKER_SYNC_SECONDS)],
+    )
 
 
 def _wait_for_rpc(plan, l1_name, rpc_url, evm_chain_id):

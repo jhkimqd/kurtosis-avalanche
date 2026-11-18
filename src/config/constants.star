@@ -81,5 +81,10 @@ POA_VALIDATOR_WEIGHT = 1000000
 # tools/staking.go: a stake of 1 token divided by a weight-to-value factor of 5e12.
 POS_VALIDATOR_WEIGHT = 200000
 
+# Seconds that the bootstrap nodes of a PoS L1 keep running after the P-Chain
+# removed them: the 60 seconds between two validator set reads of Subnet-EVM,
+# plus a margin. See `_wait_for_uptime_trackers` in src/l1/launcher.star.
+UPTIME_TRACKER_SYNC_SECONDS = 65
+
 # Transfers sent on each L1 as a final smoke test.
 SMOKE_TRANSACTION_COUNT = 5

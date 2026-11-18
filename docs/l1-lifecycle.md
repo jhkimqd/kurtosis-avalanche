@@ -37,7 +37,8 @@ A validator named in step 3 holds no stake, because the staking contract does no
    - `initiateValidatorRemoval` on the L1 sends a Warp message.
    - `SetL1ValidatorWeightTx` carries it to the P-Chain and sets the weight to 0.
    - `completeValidatorRemoval` returns the confirmation to the L1.
-4. `lab finalize-pos` checks that the P-Chain lists exactly the staked validators, and the package removes the bootstrap nodes.
+4. `lab finalize-pos` checks that the P-Chain lists exactly the staked validators.
+5. The package waits 65 seconds and then removes the bootstrap nodes. The wait avoids a defect of AvalancheGo v1.15.0: a node that loses the connection to a validator too soon after its removal can no longer save its uptime data. `_wait_for_uptime_trackers` in `src/l1/launcher.star` has the details.
 
 The ValidatorManager lets the validator set change by at most 20% of its total weight per second. The number and the weight of the bootstrap validators follow from this limit: see the comment "PoS bootstrap validators" in `src/l1/launcher.star`.
 
