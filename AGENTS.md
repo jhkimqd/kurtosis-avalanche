@@ -132,8 +132,8 @@ These follow kurtosis-pos (`src/config/`, launcher contract) and kurtosis-cdk (`
 - Section headers in Starlark and YAML use this form: `# ── Name ───`.
 - A comment states what the code does or why. It does not tell the history of a change.
 - In an arguments file, a comment above a key says what the key does, its unit, and its limits.
-- `docs/config/node.yml`, `l1-chain.yml`, and `c-chain.yml` are generated. Change `scripts/gen-config-reference.py`, not the files.
-- The dashboards in `static_files/observability/grafana/dashboards/` are generated. Change `scripts/gen-dashboards.py`, not the files. Give every panel a description that says what the panel shows and how to read it. Use only a metric that you saw on a live devnet. The other files in `docs/config/` are written by hand from the upstream Go sources; cite the source file.
+- `docs/config/node.yml`, `l1-chain.yml`, and `c-chain.yml` are generated. Change `scripts/gen-config-reference.py`, not the files. The other files in `docs/config/` are written by hand from the upstream Go sources; cite the source file.
+- The dashboards in `static_files/observability/grafana/dashboards/` are generated. Change `scripts/gen-dashboards.py`, not the files. Give every panel a description that says what the panel shows and how to read it. Use only a metric that you saw on a live devnet.
 - Keep `README.md` short: what the package does, how to run it, how to configure it. Put detail in `docs/`.
 - State only what you verified against the code, the pinned upstream commit, or a live run.
 
