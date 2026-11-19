@@ -52,10 +52,17 @@ get() {
     shift 2
     curl -s -m 20 -G "$(address "$service")$path" "$@" 2>/dev/null || true
 }
-# The result list of a query, as JSON; [] when the store does not answer.
-prometheus() { get prometheus /api/v1/query --data-urlencode "query=$1" | jq -c '.data.result // []' 2>/dev/null || echo '[]'; }
-loki() { get loki /loki/api/v1/query --data-urlencode "query=$1" | jq -c '.data.result // []' 2>/dev/null || echo '[]'; }
-loki_lines() { get loki /loki/api/v1/query_range --data-urlencode "query=$1" --data-urlencode "limit=${2:-1}" --data-urlencode "direction=${3:-backward}" --data-urlencode "since=24h" | jq -c '.data.result // []' 2>/dev/null || echo '[]'; }
+# The result list of a query, as JSON. A store that does not answer, or that
+# answers with an error, gives []: no answer must never count as data.
+result() {
+    local answer
+    # jq 1.6 reports success for empty input, so the output decides.
+    answer=$(jq -c 'select(.status == "success") | .data.result // []' 2>/dev/null) || true
+    echo "${answer:-[]}"
+}
+prometheus() { get prometheus /api/v1/query --data-urlencode "query=$1" | result; }
+loki() { get loki /loki/api/v1/query --data-urlencode "query=$1" | result; }
+loki_lines() { get loki /loki/api/v1/query_range --data-urlencode "query=$1" --data-urlencode "limit=${2:-1}" --data-urlencode "direction=${3:-backward}" --data-urlencode "since=24h" | result; }
 
 # eventually <description> <function>: call the function until it succeeds.
 # The function prints why it failed; the last reason goes into the report.
@@ -111,8 +118,9 @@ check_queries() {
         fi
         [[ "$result" != '[]' ]] || remaining+=("$query")
     done <"$pending"
-    printf '%s\n' "${remaining[@]}" >"$pending"
+    : >"$pending"
     if ((${#remaining[@]} > 0)); then
+        printf '%s\n' "${remaining[@]}" >"$pending"
         jq -r '"\(.dashboard) / \(.panel) has no data: \(.expr)"' <<<"${remaining[0]}"
         ((${#remaining[@]} == 1)) || echo "  (and $((${#remaining[@]} - 1)) more)"
         return 1
@@ -177,7 +185,8 @@ if runs loki; then
         [[ -n "$entry" ]] || { echo "no line of primary-0"; return 1; }
         stated=$(jq -r '.[1]' <<<"$entry" | grep -o '^\[[0-9|:.-]*\]' | tr -d '[]')
         stored=$(jq -r '.[0]' <<<"$entry")
-        stored=$(date -u -d "@${stored:0:10}" '+%m-%d|%H:%M:%S').${stored:10:3}
+        # Nanoseconds to the format of AvalancheGo, in UTC like the containers.
+        stored=$(python3 -c 'import sys, time; print(time.strftime("%m-%d|%H:%M:%S", time.gmtime(int(sys.argv[1][:-9]))) + "." + sys.argv[1][-9:-6])' "$stored")
         [[ -n "$stated" && "$stated" == "$stored" ]] || { echo "the line states '$stated', Loki holds it at '$stored'"; return 1; }
         echo "$stated"
     }

@@ -48,22 +48,28 @@ elif name == 'curl':
         if query.startswith('count(up{job="avalanche"}'):
             value = '3' if 'node-down' in faults else str(len(NODES))
         elif query == 'up == 0':
-            print(json.dumps({'data': {'result': [{'metric': {'node': 'l1-0-rpc-0'}}] if 'node-down' in faults else []}}))
+            print(json.dumps({'status': 'success', 'data': {'result': [{'metric': {'node': 'l1-0-rpc-0'}}] if 'node-down' in faults else []}}))
             sys.exit(0)
         elif 'empty-panel' in faults and 'avalanche_snowman_blks_processing' in query:
-            print(json.dumps({'data': {'result': []}}))
+            print(json.dumps({'status': 'success', 'data': {'result': []}}))
+            sys.exit(0)
+        elif 'no-answer' in faults and 'avalanche_network_peers' in query:
+            # The store is down or too slow: curl prints nothing.
+            sys.exit(0)
+        elif 'query-error' in faults and 'avalanche_network_peers' in query:
+            print(json.dumps({'status': 'error', 'error': 'query timed out'}))
             sys.exit(0)
         else:
             value = '1'
-        print(json.dumps({'data': {'result': [{'metric': {}, 'value': [0, value]}]}}))
+        print(json.dumps({'status': 'success', 'data': {'result': [{'metric': {}, 'value': [0, value]}]}}))
     elif service == 'loki':
         if path.endswith('query_range'):
             stated = '[11-19|10:00:00.123]' if 'read-time' not in faults else '[11-19|09:00:00.000]'
             # 2026-11-19T10:00:00.123Z in nanoseconds.
-            print(json.dumps({'data': {'result': [{'stream': {}, 'values': [['1795082400123000000', stated + ' INFO node/node.go:160 initializing node']]}]}}))
+            print(json.dumps({'status': 'success', 'data': {'result': [{'stream': {}, 'values': [['1795082400123000000', stated + ' INFO node/node.go:160 initializing node']]}]}}))
         else:
             nodes = NODES[:-1] if 'no-logs' in faults else NODES
-            print(json.dumps({'data': {'result': [{'metric': {'node': node}, 'value': [0, '5']} for node in nodes]}}))
+            print(json.dumps({'status': 'success', 'data': {'result': [{'metric': {'node': node}, 'value': [0, '5']} for node in nodes]}}))
     elif service == 'grafana':
         if path == 'api/health':
             print(json.dumps({'database': 'ok'}))
@@ -139,6 +145,16 @@ class ObservabilityCheckTest(unittest.TestCase):
             with self.subTest(message=message):
                 self.assertIn(message, result.stdout)
         self.assertIn("7 check(s) failed", result.stdout)
+
+    def test_a_store_that_does_not_answer_is_not_data(self):
+        # Metrics only, to keep the run short.
+        stack = {key: STACK[key] for key in ("prometheus_url", "alloy_url")}
+        for fault in ("no-answer", "query-error"):
+            with self.subTest(fault=fault):
+                result, _ = self.run_check(fault, observability=stack)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("has no data: ", result.stdout)
+                self.assertIn("avalanche_network_peers", result.stdout)
 
     def test_only_the_running_parts_are_checked(self):
         result, calls = self.run_check(observability={})
