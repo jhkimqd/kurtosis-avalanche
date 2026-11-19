@@ -9,6 +9,8 @@ Each functionality job deploys a fresh enclave, then runs `scripts/check-devnet.
 
 `scripts/check-observability.sh` checks the observability stack that the arguments of the job enabled: Alloy scrapes every node, relayer, and signature aggregator; Loki holds the log lines of every node with their level and their own time; every query of every dashboard returns data; and Grafana reaches its datasources. The PoA job runs no stack, and the ERC-20 PoS job runs it without logs.
 
+Each functionality job first removes preinstalled toolchains that it does not use. A devnet with the observability stack needs several gigabytes for images, node databases, and the enclave dump; a runner that started with little free space ran out of disk. `disk.txt` in the artifacts records the free space after the deployment.
+
 The jobs upload deployment output, check results, and an enclave dump as artifacts retained for seven days. Log capture and removal of the job's enclave run even after a failed deployment. Jobs use read-only repository permissions and public images; they need no repository secrets or self-hosted runner.
 
 Both workflows install the same checksum-verified Kurtosis CLI through `.github/actions/setup-kurtosis`. Update its version and checksum together.
