@@ -1063,7 +1063,7 @@
     {
       "type": "timeseries",
       "title": "Average Verification Time",
-      "description": "The average time to verify a block, successful and failed verifications together.",
+      "description": "The average time of a successful block verification.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1074,7 +1074,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (node) (increase(avalanche_meterchainvm_verify_sum{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval])) / sum by (node) (increase(avalanche_meterchainvm_verify_count{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval])) / 1e9",
+          "expr": "(sum by (node) (increase(avalanche_meterchainvm_verify_sum{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval])) + sum by (node) (increase(avalanche_meterchainvm_verify_with_context_sum{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval]))) / (sum by (node) (increase(avalanche_meterchainvm_verify_count{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval])) + sum by (node) (increase(avalanche_meterchainvm_verify_with_context_count{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval]))) / 1e9",
           "refId": "A",
           "editorMode": "code",
           "range": true,
@@ -1142,7 +1142,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (node) (increase(avalanche_meterchainvm_verify_err_count{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval]))",
+          "expr": "sum by (node) (increase(avalanche_meterchainvm_verify_err_count{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval])) + sum by (node) (increase(avalanche_meterchainvm_verify_with_context_err_count{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval]))",
           "refId": "A",
           "editorMode": "code",
           "range": true,
@@ -2587,7 +2587,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (node) (rate(avalanche_meterchainvm_verify_sum{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval])) / sum by (node) (rate(avalanche_subnetevm_vm_eth_chain_block_gas_used_processed{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval]))",
+          "expr": "(sum by (node) (rate(avalanche_meterchainvm_verify_sum{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval])) + sum by (node) (rate(avalanche_meterchainvm_verify_with_context_sum{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval]))) / sum by (node) (rate(avalanche_subnetevm_vm_eth_chain_block_gas_used_processed{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval]))",
           "refId": "A",
           "editorMode": "code",
           "range": true,
@@ -4097,7 +4097,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "avalanche_snowman_get_ancestors_blks_sum{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"} / (avalanche_snowman_get_ancestors_blks_count{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"} + 1)",
+              "expr": "sum by (node) (increase(avalanche_snowman_get_ancestors_blks_sum{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval])) / sum by (node) (increase(avalanche_snowman_get_ancestors_blks_count{job=\"avalanche\", l1=~\"$l1\", node=~\"$node\", chain!~\"P|X|C|all\"}[$__rate_interval]))",
               "refId": "A",
               "editorMode": "code",
               "range": true,
@@ -4191,7 +4191,7 @@
         "sort": 1,
         "multi": true,
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": ".+",
         "current": {
           "selected": true,
           "text": "All",

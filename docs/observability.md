@@ -63,7 +63,7 @@ Metrics and logs of a node carry the same labels, so a query for one works for t
 | `l1` | `l1-0`, `l1-1`, ...; absent on a Primary Network validator | Metrics and logs |
 | `chain` | `P`, `X`, `C`, or the blockchain ID of an L1. AvalancheGo sets it. | Metrics of one chain |
 | `logger` | The log file: `main`, `P`, `X`, `C`, a blockchain ID, or `vm-factory` | Logs |
-| `level` | `fatal`, `error`, `warn`, `info`, `debug`, `trace`, `verbo` | Logs |
+| `level` | `fatal`, `crit`, `error`, `warn`, `info`, `debug`, `trace`, `verbo` | Logs |
 
 An L1 node follows only the P-Chain and the chain of its own L1. To select the chain of an L1 without its blockchain ID, use `{l1="l1-0", chain!~"P|X|C|all"}`.
 

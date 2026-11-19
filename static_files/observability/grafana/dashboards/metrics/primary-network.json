@@ -1063,7 +1063,7 @@
     {
       "type": "timeseries",
       "title": "Average Verification Time",
-      "description": "The average time to verify a block, successful and failed verifications together.",
+      "description": "The average time of a successful block verification.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1074,7 +1074,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (node, chain) (increase(avalanche_meterchainvm_verify_sum{job=\"avalanche\", role=\"primary\", node=~\"$node\", chain=~\"$chain\"}[$__rate_interval])) / sum by (node, chain) (increase(avalanche_meterchainvm_verify_count{job=\"avalanche\", role=\"primary\", node=~\"$node\", chain=~\"$chain\"}[$__rate_interval])) / 1e9",
+          "expr": "(sum by (node, chain) (increase(avalanche_meterchainvm_verify_sum{job=\"avalanche\", role=\"primary\", node=~\"$node\", chain=~\"$chain\"}[$__rate_interval])) + sum by (node, chain) (increase(avalanche_meterchainvm_verify_with_context_sum{job=\"avalanche\", role=\"primary\", node=~\"$node\", chain=~\"$chain\"}[$__rate_interval]))) / (sum by (node, chain) (increase(avalanche_meterchainvm_verify_count{job=\"avalanche\", role=\"primary\", node=~\"$node\", chain=~\"$chain\"}[$__rate_interval])) + sum by (node, chain) (increase(avalanche_meterchainvm_verify_with_context_count{job=\"avalanche\", role=\"primary\", node=~\"$node\", chain=~\"$chain\"}[$__rate_interval]))) / 1e9",
           "refId": "A",
           "editorMode": "code",
           "range": true,
@@ -1142,7 +1142,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (node, chain) (increase(avalanche_meterchainvm_verify_err_count{job=\"avalanche\", role=\"primary\", node=~\"$node\", chain=~\"$chain\"}[$__rate_interval]))",
+          "expr": "sum by (node, chain) (increase(avalanche_meterchainvm_verify_err_count{job=\"avalanche\", role=\"primary\", node=~\"$node\", chain=~\"$chain\"}[$__rate_interval])) + sum by (node, chain) (increase(avalanche_meterchainvm_verify_with_context_err_count{job=\"avalanche\", role=\"primary\", node=~\"$node\", chain=~\"$chain\"}[$__rate_interval]))",
           "refId": "A",
           "editorMode": "code",
           "range": true,
@@ -1756,7 +1756,7 @@
     {
       "type": "timeseries",
       "title": "Node Uptime",
-      "description": "Uptime of each validator as its peers report it, weighted by their stake. A validator earns its reward above 80%.",
+      "description": "Uptime of each validator as its peers report it, weighted by their stake. A validator earns its reward from 90%.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"

@@ -37,7 +37,7 @@
     {
       "type": "stat",
       "title": "Errors",
-      "description": "Number of log lines with level error or fatal in the selected time range. Open the lines below to read them.",
+      "description": "Number of log lines with level error, fatal, or crit in the selected time range. Open the lines below to read them.",
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -48,8 +48,9 @@
             "type": "loki",
             "uid": "${loki}"
           },
-          "expr": "sum(count_over_time({job=\"avalanche\", node=~\"$node\", level=~\"error|fatal\"} [$__range])) or vector(0)",
-          "refId": "A"
+          "expr": "sum(count_over_time({job=\"avalanche\", node=~\"$node\", level=~\"error|fatal|crit\"} [$__range])) or vector(0)",
+          "refId": "A",
+          "queryType": "instant"
         }
       ],
       "gridPos": {
@@ -110,7 +111,8 @@
             "uid": "${loki}"
           },
           "expr": "sum(count_over_time({job=\"avalanche\", node=~\"$node\", level=\"warn\"} [$__range])) or vector(0)",
-          "refId": "A"
+          "refId": "A",
+          "queryType": "instant"
         }
       ],
       "gridPos": {
@@ -170,8 +172,9 @@
             "type": "loki",
             "uid": "${loki}"
           },
-          "expr": "sum(count_over_time({job=\"avalanche\", node=~\"$node\"} |~ \"(?i)\\\\bCRIT\\\\b|\\\\bFATAL\\\\b|fatal error|panic: \" [$__range])) or vector(0)",
-          "refId": "A"
+          "expr": "sum(count_over_time({job=\"avalanche\", node=~\"$node\"} |~ `\\bCRIT\\b|\\bFATAL\\b|fatal error: |panic: ` [$__range])) or vector(0)",
+          "refId": "A",
+          "queryType": "instant"
         }
       ],
       "gridPos": {
@@ -232,7 +235,8 @@
             "uid": "${loki}"
           },
           "expr": "sum(count_over_time({job=\"avalanche\", node=~\"$node\"} |= \"detected previous ungraceful shutdown\" [$__range])) or vector(0)",
-          "refId": "A"
+          "refId": "A",
+          "queryType": "instant"
         }
       ],
       "gridPos": {
@@ -307,6 +311,7 @@
           },
           "expr": "label_replace(sum by (level) (count_over_time({job=\"avalanche\", node=~\"$node\", logger=~\"$logger\"} [$__interval])), \"level\", \"none\", \"level\", \"^$\")",
           "refId": "A",
+          "queryType": "range",
           "legendFormat": "{{level}}"
         }
       ],
@@ -354,6 +359,21 @@
             "matcher": {
               "id": "byName",
               "options": "fatal"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "crit"
             },
             "properties": [
               {
@@ -443,6 +463,7 @@
           },
           "expr": "sum by (node) (count_over_time({job=\"avalanche\", node=~\"$node\", logger=~\"$logger\"} [$__interval]))",
           "refId": "A",
+          "queryType": "range",
           "legendFormat": "{{node}}"
         }
       ],
@@ -490,6 +511,21 @@
             "matcher": {
               "id": "byName",
               "options": "fatal"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "crit"
             },
             "properties": [
               {
@@ -566,7 +602,7 @@
     {
       "type": "timeseries",
       "title": "Errors and warnings by node",
-      "description": "Number of lines with level warn, error, or fatal in each interval, by node.",
+      "description": "Number of lines with level warn, error, fatal, or crit in each interval, by node.",
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -577,8 +613,9 @@
             "type": "loki",
             "uid": "${loki}"
           },
-          "expr": "sum by (node) (count_over_time({job=\"avalanche\", node=~\"$node\", logger=~\"$logger\", level=~\"warn|error|fatal\"} [$__interval]))",
+          "expr": "sum by (node) (count_over_time({job=\"avalanche\", node=~\"$node\", logger=~\"$logger\", level=~\"warn|error|fatal|crit\"} [$__interval]))",
           "refId": "A",
+          "queryType": "range",
           "legendFormat": "{{node}}"
         }
       ],
@@ -626,6 +663,21 @@
             "matcher": {
               "id": "byName",
               "options": "fatal"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "crit"
             },
             "properties": [
               {
@@ -715,6 +767,7 @@
           },
           "expr": "sum by (logger) (count_over_time({job=\"avalanche\", node=~\"$node\", logger=~\"$logger\"} [$__interval]))",
           "refId": "A",
+          "queryType": "range",
           "legendFormat": "{{logger}}"
         }
       ],
@@ -762,6 +815,21 @@
             "matcher": {
               "id": "byName",
               "options": "fatal"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "crit"
             },
             "properties": [
               {
@@ -851,7 +919,7 @@
     {
       "type": "logs",
       "title": "Errors and warnings",
-      "description": "Lines with level warn, error, or fatal of the selected nodes and loggers, newest first.",
+      "description": "Lines with level warn, error, fatal, or crit of the selected nodes and loggers, newest first.",
       "datasource": {
         "type": "loki",
         "uid": "${loki}"
@@ -862,8 +930,9 @@
             "type": "loki",
             "uid": "${loki}"
           },
-          "expr": "{job=\"avalanche\", node=~\"$node\", logger=~\"$logger\", level=~\"warn|error|fatal\"} |~ \"(?i)$search\"",
-          "refId": "A"
+          "expr": "{job=\"avalanche\", node=~\"$node\", logger=~\"$logger\", level=~\"warn|error|fatal|crit\"} |~ `(?i)$search`",
+          "refId": "A",
+          "queryType": "range"
         }
       ],
       "gridPos": {
@@ -898,8 +967,9 @@
             "type": "loki",
             "uid": "${loki}"
           },
-          "expr": "{job=\"avalanche\", node=~\"$node\", logger=~\"$logger\", level=~\"$level\"} |~ \"(?i)$search\"",
-          "refId": "A"
+          "expr": "{job=\"avalanche\", node=~\"$node\", logger=~\"$logger\", level=~\"$level\"} |~ `(?i)$search`",
+          "refId": "A",
+          "queryType": "range"
         }
       ],
       "gridPos": {
@@ -967,10 +1037,10 @@
           "type": "loki",
           "uid": "${loki}"
         },
-        "definition": "{job=\"avalanche\"}",
+        "definition": "{job=\"avalanche\", node=~\"$node\"}",
         "query": {
           "label": "logger",
-          "stream": "{job=\"avalanche\"}",
+          "stream": "{job=\"avalanche\", node=~\"$node\"}",
           "type": 1
         },
         "refresh": 2,
@@ -988,11 +1058,16 @@
         "name": "level",
         "label": "Level",
         "type": "custom",
-        "query": "fatal,error,warn,info,debug,trace,verbo",
+        "query": "fatal,crit,error,warn,info,debug,trace,verbo",
         "options": [
           {
             "text": "fatal",
             "value": "fatal",
+            "selected": false
+          },
+          {
+            "text": "crit",
+            "value": "crit",
             "selected": false
           },
           {

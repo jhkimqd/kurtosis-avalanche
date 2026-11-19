@@ -225,7 +225,7 @@
     {
       "type": "stat",
       "title": "Aggregation failures",
-      "description": "Number of failures since the aggregators started: no validator set, not enough connected stake, or a message that could not be sent to a validator.",
+      "description": "Number of failed attempts in the selected time range: no validator set, not enough connected stake, or a message that could not be sent to a validator. A deployment causes some, because the tools ask again while new validators connect. Failures on a network that is not changing deserve a look.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -236,7 +236,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(signature_aggregator_failures_to_get_validator_set{job=\"signature-aggregator\", l1=~\"$l1\"}) + sum(signature_aggregator_failures_to_connect_to_sufficient_stake{job=\"signature-aggregator\", l1=~\"$l1\"}) + sum(signature_aggregator_failures_sending_to_node{job=\"signature-aggregator\", l1=~\"$l1\"})",
+          "expr": "sum(increase(signature_aggregator_failures_to_get_validator_set{job=\"signature-aggregator\", l1=~\"$l1\"}[$__range])) + sum(increase(signature_aggregator_failures_to_connect_to_sufficient_stake{job=\"signature-aggregator\", l1=~\"$l1\"}[$__range])) + sum(increase(signature_aggregator_failures_sending_to_node{job=\"signature-aggregator\", l1=~\"$l1\"}[$__range]))",
           "refId": "A",
           "editorMode": "code",
           "range": false,
@@ -259,22 +259,19 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "text",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
               }
             ]
           },
           "unit": "short",
-          "noValue": "no data"
+          "noValue": "no data",
+          "decimals": 0
         },
         "overrides": []
       },
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
         "reduceOptions": {
           "calcs": [
@@ -492,6 +489,98 @@
     },
     {
       "type": "timeseries",
+      "title": "Aggregation Failures by Kind",
+      "description": "Failed attempts to aggregate a signature in each interval, by cause. `connect_to_sufficient_stake` means that the aggregator was not yet connected to validators with 67% of the stake.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum (increase(signature_aggregator_failures_to_get_validator_set{job=\"signature-aggregator\", l1=~\"$l1\"}[$__rate_interval]))",
+          "refId": "A",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "legendFormat": "to_get_validator_set"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum (increase(signature_aggregator_failures_to_connect_to_sufficient_stake{job=\"signature-aggregator\", l1=~\"$l1\"}[$__rate_interval]))",
+          "refId": "B",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "legendFormat": "to_connect_to_sufficient_stake"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum (increase(signature_aggregator_failures_sending_to_node{job=\"signature-aggregator\", l1=~\"$l1\"}[$__rate_interval]))",
+          "refId": "C",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "legendFormat": "sending_to_node"
+        }
+      ],
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
+      "id": 9,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "min",
+            "max",
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
       "title": "Validator Timeouts and Invalid Signatures",
       "description": "Validators that did not answer in time, and answers with an invalid signature.",
       "datasource": {
@@ -527,10 +616,10 @@
       "gridPos": {
         "h": 7,
         "w": 8,
-        "x": 16,
-        "y": 8
+        "x": 0,
+        "y": 15
       },
-      "id": 9,
+      "id": 10,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -573,7 +662,7 @@
     {
       "type": "timeseries",
       "title": "Connected Stake",
-      "description": "Share of the stake of each L1 that its aggregator is connected to, in percent.",
+      "description": "Share of the stake of a subnet that an aggregator is connected to, in percent. An aggregator reports the subnet of its L1 and the Primary Network.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -589,16 +678,16 @@
           "editorMode": "code",
           "range": true,
           "instant": false,
-          "legendFormat": "{{l1}}"
+          "legendFormat": "{{l1}} {{subnetID}}"
         }
       ],
       "gridPos": {
         "h": 7,
         "w": 8,
-        "x": 0,
+        "x": 8,
         "y": 15
       },
-      "id": 10,
+      "id": 11,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -677,10 +766,10 @@
       "gridPos": {
         "h": 7,
         "w": 8,
-        "x": 8,
+        "x": 16,
         "y": 15
       },
-      "id": 11,
+      "id": 12,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -731,7 +820,7 @@
         "x": 0,
         "y": 22
       },
-      "id": 12
+      "id": 13
     },
     {
       "type": "stat",
@@ -760,7 +849,7 @@
         "x": 0,
         "y": 23
       },
-      "id": 13,
+      "id": 14,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -824,7 +913,7 @@
         "x": 4,
         "y": 23
       },
-      "id": 14,
+      "id": 15,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -860,7 +949,7 @@
     {
       "type": "stat",
       "title": "Messages failed",
-      "description": "Number of messages that the relayers could not deliver.",
+      "description": "Number of messages that the relayers could not deliver in the selected time range.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -871,7 +960,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(app_failed_relay_message_count{job=\"icm-relayer\", l1=~\"$l1\"}) or vector(0)",
+          "expr": "sum(increase(app_failed_relay_message_count{job=\"icm-relayer\", l1=~\"$l1\"}[$__range])) or vector(0)",
           "refId": "A",
           "editorMode": "code",
           "range": false,
@@ -884,7 +973,7 @@
         "x": 8,
         "y": 23
       },
-      "id": 15,
+      "id": 16,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -948,7 +1037,7 @@
         "x": 12,
         "y": 23
       },
-      "id": 16,
+      "id": 17,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1009,7 +1098,7 @@
         "x": 16,
         "y": 23
       },
-      "id": 17,
+      "id": 18,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1077,7 +1166,7 @@
         "x": 0,
         "y": 30
       },
-      "id": 18,
+      "id": 19,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1145,7 +1234,7 @@
         "x": 8,
         "y": 30
       },
-      "id": 19,
+      "id": 20,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1213,7 +1302,7 @@
         "x": 16,
         "y": 30
       },
-      "id": 20,
+      "id": 21,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1255,7 +1344,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Signature Requests to Validators",
+      "title": "Relayer Signature Requests",
       "description": "Requests for a signature that the relayers sent to validators in each interval.",
       "datasource": {
         "type": "prometheus",
@@ -1281,7 +1370,7 @@
         "x": 0,
         "y": 37
       },
-      "id": 21,
+      "id": 22,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1361,7 +1450,7 @@
         "x": 8,
         "y": 37
       },
-      "id": 22,
+      "id": 23,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1432,7 +1521,7 @@
         "sort": 1,
         "multi": true,
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": ".+",
         "current": {
           "selected": true,
           "text": "All",

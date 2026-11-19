@@ -56,6 +56,13 @@ L1_EVM = "avalanche_subnetevm_vm_eth_"
 C_EVM = "avalanche_evm_eth_"
 SAE = "avalanche_evm_transition_sae_"
 
+# Counters of the signature aggregator for an aggregation that failed.
+AGGREGATOR_FAILURES = (
+    "failures_to_get_validator_set",
+    "failures_to_connect_to_sufficient_stake",
+    "failures_sending_to_node",
+)
+
 # Consensus messages that a node handles, as in the production dashboard.
 CONSENSUS_OPS = (
     "put|get_accepted_frontier|accepted_frontier|get_accepted|accepted|get_ancestors"
@@ -132,6 +139,9 @@ class Dashboard:
             query = {"datasource": datasource, "expr": expr, "refId": ref}
             if datasource == PROMETHEUS:
                 query.update({"editorMode": "code", "range": kind != "stat", "instant": kind == "stat"})
+            else:
+                # A status number needs one value, not one per step of the range.
+                query["queryType"] = "instant" if kind == "stat" else "range"
             if legend:
                 query["legendFormat"] = legend
             panel["targets"].append(query)
@@ -142,7 +152,7 @@ class Dashboard:
                     "datasource": datasource["type"],
                     # Loki answers a query for log lines only over a time range.
                     "range": kind == "logs",
-                    "expr": resolve(expr),
+                    "expr": resolve(without_fallback(expr)),
                     "optional": optional,
                     "requires": requires,
                 }
@@ -191,8 +201,11 @@ class Dashboard:
         return panel
 
     def number(self, title, description, expr, unit="short", steps=None, width=4,
-               datasource=PROMETHEUS, optional=False, requires=None):
-        """One status number, coloured by `steps` as [(colour, from value)]."""
+               datasource=PROMETHEUS, optional=False, requires=None, decimals=None):
+        """One status number, coloured by `steps` as [(colour, from value)].
+
+        Without `steps` the number has no colour: it informs, it does not judge.
+        """
         panel = self._panel("stat", title, description, [expr], width, 4, datasource, optional, requires)
         steps = steps or [("text", None)]
         panel["fieldConfig"] = {
@@ -207,6 +220,8 @@ class Dashboard:
             },
             "overrides": [],
         }
+        if decimals is not None:
+            panel["fieldConfig"]["defaults"]["decimals"] = decimals
         panel["options"] = {
             "colorMode": "background" if len(steps) > 1 else "value",
             "graphMode": "none",
@@ -264,7 +279,7 @@ class Dashboard:
                     "matcher": {"id": "byName", "options": name},
                     "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": color}}],
                 }
-                for name, color in (("error", "red"), ("fatal", "dark-red"), ("warn", "orange"), ("info", "green"), ("debug", "blue"))
+                for name, color in (("error", "red"), ("fatal", "dark-red"), ("crit", "dark-red"), ("warn", "orange"), ("info", "green"), ("debug", "blue"))
             ],
         }
         panel["options"] = {
@@ -318,6 +333,16 @@ class Dashboard:
         }
 
 
+def without_fallback(expr):
+    """Returns the query without a final `or vector(0)`.
+
+    A status number shows 0 through that fallback when its query finds
+    nothing. The live check asks the query itself, so that a wrong metric
+    name cannot hide behind the 0.
+    """
+    return re.sub(r"\s+or vector\(0\)$", "", expr)
+
+
 def resolve(expr):
     """Returns the query with a value in place of each dashboard variable."""
     for variable, value in RESOLVED.items():
@@ -332,7 +357,13 @@ def datasource_variable(name, kind, label):
     return {"name": name, "label": label, "type": "datasource", "query": kind, "current": {}, "hide": 0, "refresh": 1}
 
 
-def query_variable(name, label, query, datasource=PROMETHEUS, multi=True):
+def query_variable(name, label, query, datasource=PROMETHEUS, multi=True, all_value=".*"):
+    """A variable whose values come from a query.
+
+    Args:
+        all_value: the regular expression that "All" stands for. `.*` also
+            matches a series without the label; `.+` does not.
+    """
     variable = {
         "name": name,
         "label": label,
@@ -346,7 +377,7 @@ def query_variable(name, label, query, datasource=PROMETHEUS, multi=True):
         "includeAll": multi,
     }
     if multi:
-        variable.update({"allValue": ".*", "current": {"selected": True, "text": "All", "value": "$__all"}})
+        variable.update({"allValue": all_value, "current": {"selected": True, "text": "All", "value": "$__all"}})
     return variable
 
 
@@ -398,6 +429,15 @@ def consensus(board, selector, by, legend):
 
     def gauge(metric):
         return "max by ({}) ({}{{{}}})".format(by, metric, s)
+
+    def verification(suffix):
+        # AvalancheGo verifies a block with or without the P-Chain height of
+        # its proposer; a block that carries Warp messages takes the second
+        # path. Each path has its own metrics.
+        return " + ".join(
+            "sum by ({}) (increase(avalanche_meterchainvm_{}{}{{{}}}[{}]))".format(by, path, suffix, s, RATE)
+            for path in ("verify", "verify_with_context")
+        )
 
     chits = 'avalanche_handler_messages{{{}, op="chits"}}'.format(s)
     failed = 'avalanche_handler_messages{{{}, op="query_failed"}}'.format(s)
@@ -507,14 +547,14 @@ def consensus(board, selector, by, legend):
     )
     board.graph(
         "Average Verification Time",
-        "The average time to verify a block, successful and failed verifications together.",
-        (ratio("avalanche_meterchainvm_verify_sum", "avalanche_meterchainvm_verify_count", by, s, scale=" / 1e9"), legend),
+        "The average time of a successful block verification.",
+        ("({}) / ({}) / 1e9".format(verification("_sum"), verification("_count")), legend),
         unit="s",
     )
     board.graph(
         "Block Verifications Failed",
         "The number of blocks that failed verification.",
-        (per("avalanche_meterchainvm_verify_err_count"), legend),
+        (verification("_err_count"), legend),
         bars=True,
     )
     board.graph(
@@ -742,7 +782,8 @@ def l1():
         "One Avalanche L1: its consensus, the resources of its nodes, its messages, and its EVM. It follows the production L1 dashboard. Every panel shows the chain of the selected L1 on the selected nodes.",
         [
             PROMETHEUS_VARIABLE,
-            query_variable("l1", "L1", 'label_values(up{job="avalanche", l1!=""}, l1)'),
+            # A Primary Network validator has no `l1` label; "All" leaves it out.
+            query_variable("l1", "L1", 'label_values(up{job="avalanche", l1!=""}, l1)', all_value=".+"),
             query_variable("node", "Node", 'label_values(up{job="avalanche", l1=~"$l1"}, node)'),
         ],
     )
@@ -869,7 +910,10 @@ def l1():
     board.graph(
         "Nanoseconds Per Gas",
         "Time to verify blocks, divided by the gas they use. It compares the cost of execution between nodes and over time.",
-        ("sum by (node) (rate(avalanche_meterchainvm_verify_sum{{{s}}}[{w}])) / sum by (node) (rate({e}chain_block_gas_used_processed{{{s}}}[{w}]))".format(e=evm, s=chain, w=RATE), legend),
+        (
+            "(sum by (node) (rate(avalanche_meterchainvm_verify_sum{{{s}}}[{w}])) + sum by (node) (rate(avalanche_meterchainvm_verify_with_context_sum{{{s}}}[{w}]))) / sum by (node) (rate({e}chain_block_gas_used_processed{{{s}}}[{w}]))".format(e=evm, s=chain, w=RATE),
+            legend,
+        ),
         unit="ns",
     )
     board.graph(
@@ -955,7 +999,7 @@ def l1():
     board.graph(
         "Blocks per Get Ancestors",
         "Average number of blocks in one answer to a request for the ancestors of a block.",
-        ("avalanche_snowman_get_ancestors_blks_sum{{{s}}} / (avalanche_snowman_get_ancestors_blks_count{{{s}}} + 1)".format(s=chain), legend),
+        (ratio("avalanche_snowman_get_ancestors_blks_sum", "avalanche_snowman_get_ancestors_blks_count", "node", chain), legend),
     )
     return board
 
@@ -1008,7 +1052,7 @@ def primary_network():
     )
     board.graph(
         "Node Uptime",
-        "Uptime of each validator as its peers report it, weighted by their stake. A validator earns its reward above 80%.",
+        "Uptime of each validator as its peers report it, weighted by their stake. A validator earns its reward from 90%.",
         ("avalanche_network_node_uptime_weighted_average{{{}}}".format(node), legend),
         unit="percent",
     )
@@ -1128,7 +1172,7 @@ def icm():
         "avalanche-icm",
         "Avalanche devnet: interchain messaging",
         "Avalanche Interchain Messaging (ICM) between the C-Chain and each L1. A signature aggregator collects the signatures of the validators for a Warp message. With `bridge`, an ICM relayer delivers the messages of the token bridge.",
-        [PROMETHEUS_VARIABLE, query_variable("l1", "L1", 'label_values(up{job="signature-aggregator"}, l1)')],
+        [PROMETHEUS_VARIABLE, query_variable("l1", "L1", 'label_values(up{job="signature-aggregator"}, l1)', all_value=".+")],
     )
     relayer = 'job="icm-relayer", l1=~"$l1"'
     aggregator = 'job="signature-aggregator", l1=~"$l1"'
@@ -1154,9 +1198,13 @@ def icm():
     )
     board.number(
         "Aggregation failures",
-        "Number of failures since the aggregators started: no validator set, not enough connected stake, or a message that could not be sent to a validator.",
-        "sum(signature_aggregator_failures_to_get_validator_set{{{s}}}) + sum(signature_aggregator_failures_to_connect_to_sufficient_stake{{{s}}}) + sum(signature_aggregator_failures_sending_to_node{{{s}}})".format(s=aggregator),
-        steps=[("green", None), ("red", 1)],
+        "Number of failed attempts in the selected time range: no validator set, not enough connected stake, or a message that could not be sent to a validator. A deployment causes some, because the tools ask again while new validators connect. Failures on a network that is not changing deserve a look.",
+        " + ".join(
+            "sum(increase(signature_aggregator_{}{{{}}}[$__range]))".format(failure, aggregator)
+            for failure in AGGREGATOR_FAILURES
+        ),
+        # `increase` estimates between samples, so the count is not whole.
+        decimals=0,
     )
     board.graph(
         "Aggregation Requests",
@@ -1177,6 +1225,16 @@ def icm():
         bars=True,
     )
     board.graph(
+        "Aggregation Failures by Kind",
+        "Failed attempts to aggregate a signature in each interval, by cause. `connect_to_sufficient_stake` means that the aggregator was not yet connected to validators with 67% of the stake.",
+        *[
+            ("sum (increase(signature_aggregator_{}{{{}}}[{}]))".format(failure, aggregator, RATE), failure.removeprefix("failures_"))
+            for failure in AGGREGATOR_FAILURES
+        ],
+        bars=True,
+        stack=True,
+    )
+    board.graph(
         "Validator Timeouts and Invalid Signatures",
         "Validators that did not answer in time, and answers with an invalid signature.",
         ("sum (increase(signature_aggregator_validator_timeouts{{{}}}[{}]))".format(aggregator, RATE), "timeouts"),
@@ -1185,8 +1243,8 @@ def icm():
     )
     board.graph(
         "Connected Stake",
-        "Share of the stake of each L1 that its aggregator is connected to, in percent.",
-        ("signature_aggregator_connected_stake_weight_percentage{{{}}}".format(aggregator), "{{l1}}"),
+        "Share of the stake of a subnet that an aggregator is connected to, in percent. An aggregator reports the subnet of its L1 and the Primary Network.",
+        ("signature_aggregator_connected_stake_weight_percentage{{{}}}".format(aggregator), "{{l1}} {{subnetID}}"),
         unit="percent",
         minimum=0,
         maximum=100,
@@ -1215,9 +1273,11 @@ def icm():
     )
     board.number(
         "Messages failed",
-        "Number of messages that the relayers could not deliver.",
-        "sum(app_failed_relay_message_count{{{}}}) or vector(0)".format(relayer),
+        "Number of messages that the relayers could not deliver in the selected time range.",
+        "sum(increase(app_failed_relay_message_count{{{}}}[$__range])) or vector(0)".format(relayer),
         steps=[("green", None), ("red", 1)],
+        # The relayer has no series for a failure that never happened.
+        optional=True,
         requires="bridge",
     )
     board.number(
@@ -1259,7 +1319,7 @@ def icm():
         requires="bridge",
     )
     board.graph(
-        "Signature Requests to Validators",
+        "Relayer Signature Requests",
         "Requests for a signature that the relayers sent to validators in each interval.",
         ("sum by (l1) (increase(app_fetch_signature_app_request_count{{{}}}[{}]))".format(relayer, RATE), "{{l1}}"),
         bars=True,
@@ -1288,8 +1348,9 @@ def logs():
         [
             datasource_variable("loki", "loki", "Datasource"),
             query_variable("node", "Node", "{job=\"avalanche\"}", datasource=LOKI),
-            query_variable("logger", "Logger", "{job=\"avalanche\"}", datasource=LOKI),
-            custom_variable("level", "Level", ["fatal", "error", "warn", "info", "debug", "trace", "verbo"]),
+            query_variable("logger", "Logger", '{job="avalanche", node=~"$node"}', datasource=LOKI),
+            # AvalancheGo logs `fatal`; the EVM logs `crit` for the same.
+            custom_variable("level", "Level", ["fatal", "crit", "error", "warn", "info", "debug", "trace", "verbo"]),
             text_variable("search", "Search (regular expression)"),
         ],
     )
@@ -1302,11 +1363,13 @@ def logs():
     board.row("Status")
     board.number(
         "Errors",
-        "Number of log lines with level error or fatal in the selected time range. Open the lines below to read them.",
-        count(', level=~"error|fatal"'),
+        "Number of log lines with level error, fatal, or crit in the selected time range. Open the lines below to read them.",
+        count(', level=~"error|fatal|crit"'),
         steps=[("green", None), ("red", 1)],
         width=6,
         datasource=LOKI,
+        # A healthy devnet has no such line.
+        optional=True,
         requires="logs",
     )
     board.number(
@@ -1316,15 +1379,18 @@ def logs():
         steps=[("green", None), ("yellow", 1)],
         width=6,
         datasource=LOKI,
+        optional=True,
         requires="logs",
     )
     board.number(
         "Panic or fatal",
         "Number of log lines that report a panic or a fatal error in the selected time range. A node that logs one has stopped or is about to.",
-        count("", ' |~ "(?i)\\\\bCRIT\\\\b|\\\\bFATAL\\\\b|fatal error|panic: "'),
+        # The level in capitals, or the two messages of the Go runtime.
+        count("", " |~ `\\bCRIT\\b|\\bFATAL\\b|fatal error: |panic: `"),
         steps=[("green", None), ("red", 1)],
         width=6,
         datasource=LOKI,
+        optional=True,
         requires="logs",
     )
     board.number(
@@ -1334,6 +1400,7 @@ def logs():
         steps=[("green", None), ("red", 1)],
         width=6,
         datasource=LOKI,
+        optional=True,
         requires="logs",
     )
 
@@ -1354,8 +1421,8 @@ def logs():
     )
     board.log_graph(
         "Errors and warnings by node",
-        "Number of lines with level warn, error, or fatal in each interval, by node.",
-        ('sum by (node) (count_over_time({{{}, logger=~"$logger", level=~"warn|error|fatal"}} [$__interval]))'.format(selector), "{{node}}"),
+        "Number of lines with level warn, error, fatal, or crit in each interval, by node.",
+        ('sum by (node) (count_over_time({{{}, logger=~"$logger", level=~"warn|error|fatal|crit"}} [$__interval]))'.format(selector), "{{node}}"),
     )
     board.log_graph(
         "Log lines by logger",
@@ -1366,14 +1433,15 @@ def logs():
     board.row("Lines")
     board.logs(
         "Errors and warnings",
-        "Lines with level warn, error, or fatal of the selected nodes and loggers, newest first.",
-        '{{{}, logger=~"$logger", level=~"warn|error|fatal"}} |~ "(?i)$search"'.format(selector),
+        "Lines with level warn, error, fatal, or crit of the selected nodes and loggers, newest first.",
+        # Backticks: Loki then takes the search text as typed, backslashes included.
+        '{{{}, logger=~"$logger", level=~"warn|error|fatal|crit"}} |~ `(?i)$search`'.format(selector),
         height=10,
     )
     board.logs(
         "Log lines",
         "Lines of the selected nodes, loggers, and levels, newest first. The search box filters them with a regular expression that ignores case.",
-        '{{{}, logger=~"$logger", level=~"$level"}} |~ "(?i)$search"'.format(selector),
+        '{{{}, logger=~"$logger", level=~"$level"}} |~ `(?i)$search`'.format(selector),
     )
     return board
 

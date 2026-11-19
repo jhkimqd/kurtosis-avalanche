@@ -114,6 +114,38 @@ class DashboardsTest(unittest.TestCase):
                         self.assertIsNone(re.search(r"\$\w", generator.resolve(expr)))
             self.assertLessEqual(variables - {"datasource", "loki"}, used, path)
 
+    def test_the_live_check_asks_what_all_selects(self):
+        # The check runs each query with a value per variable. For a variable
+        # with "All", that value is what "All" stands for in Grafana.
+        for path, board in self.boards.items():
+            for variable in board.json()["templating"]["list"]:
+                if variable.get("includeAll"):
+                    with self.subTest(dashboard=path, variable=variable["name"]):
+                        self.assertEqual(generator.RESOLVED["$" + variable["name"]], variable["allValue"])
+
+    def test_all_l1s_leaves_out_the_primary_network(self):
+        # A Primary Network validator has no `l1` label, which `.*` matches.
+        for path in ("metrics/l1.json", "metrics/icm.json"):
+            variables = {variable["name"]: variable for variable in self.boards[path].json()["templating"]["list"]}
+            self.assertEqual(variables["l1"]["allValue"], ".+")
+
+    def test_a_status_number_is_checked_without_its_fallback(self):
+        fallbacks = 0
+        for path, board in self.boards.items():
+            for panel in panels(board.json()):
+                for target in panel["targets"]:
+                    fallbacks += target["expr"].endswith("or vector(0)")
+        self.assertGreater(fallbacks, 3)
+        for board in self.boards.values():
+            for query in board.queries:
+                self.assertNotIn("or vector(0)", query["expr"], query["panel"])
+
+    def test_panel_titles_are_unique_in_a_dashboard(self):
+        # The live check names a failing panel by dashboard and title.
+        for path, board in self.boards.items():
+            titles = [panel["title"] for panel in panels(board.json())]
+            self.assertEqual(len(titles), len(set(titles)), path)
+
     def test_selectors_of_an_l1_leave_out_the_other_chains(self):
         # An L1 node also reports the P-Chain, and its database reports "all".
         self.assertIn('chain!~"P|X|C|all"', generator.L1_CHAIN)
