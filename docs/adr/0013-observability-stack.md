@@ -27,7 +27,7 @@ Nodes write their log files to one shared persistent directory, one subdirectory
 
 Give metrics and logs the same labels: `node`, `role`, and `l1`.
 
-Size the memory limit of Alloy and of Prometheus from the node count.
+Size the memory limit of Alloy and of Prometheus from the node count. The largest network that was measured has two L1s and 15 nodes: Alloy used 170 MB of its 1 GB limit, and Prometheus 90 MB of 824 MB.
 
 ## Consequences
 

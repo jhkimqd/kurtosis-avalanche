@@ -98,7 +98,7 @@ ALLOY_NODE_MEMORY = 48
 PROMETHEUS_BASE_MEMORY = 384
 PROMETHEUS_NODE_MEMORY = 32
 LOKI_MAX_MEMORY = 512
-GRAFANA_MAX_MEMORY = 512
+GRAFANA_MAX_MEMORY = 768
 
 # ── L1 setup ─────────────────────────────────────────────────────────────────
 

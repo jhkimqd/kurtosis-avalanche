@@ -37,8 +37,10 @@ The (i) of each panel says what the panel shows and how to read it.
 An EVM chain builds a block only when it has transactions. After the deployment the graphs of an L1 are therefore flat until you send transactions:
 
 ```sh
-kurtosis service exec avalanche tools 'lab run http://l1-0-rpc-0:9650/ext/bc/<blockchain-id>/rpc 100'
+kurtosis service exec avalanche tools 'lab run http://l1-0-rpc-0:9650/ext/bc/<blockchain-id>/rpc 20'
 ```
+
+The command sends 20 transfers, one after the other, and takes about 40 seconds.
 
 `kurtosis files download avalanche deployment-manifest` gives the manifest with the RPC URL of each L1.
 
@@ -84,4 +86,4 @@ Commit the script and the JSON files together; a test compares them. A change th
 - **Node logs only.** The relayer and the signature aggregator write no log files. Read their logs with `kurtosis service logs avalanche l1-0-relayer`.
 - **`log-dir` is fixed.** The package sets it for every node; `node_config` cannot change it. The log format can change: Alloy reads the default format and `log-format: json`.
 - **A line without a time keeps its read time.** A stack trace has no time of its own. Alloy gives it the time at which Alloy read it, which is the right time while Alloy follows the file.
-- **Memory.** Alloy and Prometheus hold every metric series of every node. Their memory limits grow with the node count (`ALLOY_NODE_MEMORY` and `PROMETHEUS_NODE_MEMORY` in `src/config/constants.star`).
+- **Memory.** Alloy and Prometheus hold every metric series of every node. Their memory limits grow with the node count (`ALLOY_NODE_MEMORY` and `PROMETHEUS_NODE_MEMORY` in `src/config/constants.star`). With two L1s and 15 nodes, Alloy used 170 MB, Prometheus 90 MB, Loki 135 MB, and Grafana 250 MB. Larger networks were not measured.
