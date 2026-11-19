@@ -54,6 +54,9 @@ jobs:
         run: bash scripts/run.sh "$ARGS_FILE" "$MAIN_FILE" 2>&1 | tee artifacts/integration.log
       # Check the network from outside the enclave, with independent tools.
       - run: bash scripts/check-devnet.sh "$ENCLAVE" 2>&1 | tee artifacts/check-devnet.log
+      # Check that metrics and logs arrive and that every dashboard has data.
+      # The script succeeds at once for a devnet without the stack.
+      - run: bash scripts/check-observability.sh "$ENCLAVE" 2>&1 | tee artifacts/check-observability.log
       - name: Collect interchain delivery proof
         if: ${{ always() && matrix.main_file == 'nightly.star' && steps.deploy.outcome == 'success' }}
         run: kurtosis files download "$ENCLAVE" nightly-results artifacts/nightly-results

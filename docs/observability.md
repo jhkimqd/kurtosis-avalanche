@@ -60,6 +60,14 @@ An L1 node follows only the P-Chain and the chain of its own L1. To select the c
 
 Metric names to start from: `avalanche_snowman_*` (consensus), `avalanche_network_*` (peers), `avalanche_subnetevm_vm_eth_*` (the EVM of an L1), `avalanche_evm_*` (the C-Chain), `avalanche_platformvm_*` (the P-Chain), `app_*` (relayer), and `signature_aggregator_*`.
 
+## Check the stack
+
+```sh
+bash scripts/check-observability.sh avalanche
+```
+
+The script reads the arguments of the devnet from its manifest and checks what they enabled: every node, relayer, and signature aggregator is scraped; Loki holds lines of every node, with a level and at the time that the line states; every query of every dashboard returns data; Grafana reaches its datasources and has every dashboard. CI runs it after each deployment.
+
 ## Change a dashboard
 
 The dashboards are generated. Change `scripts/gen-dashboards.py`, then run:

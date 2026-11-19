@@ -29,6 +29,7 @@ python3 scripts/gen-config-reference.py       # regenerate node.yml, l1-chain.ym
 python3 scripts/gen-dashboards.py             # regenerate the Grafana dashboards
 bash scripts/run.sh examples/poa.yml          # live run in a new enclave
 bash scripts/check-devnet.sh <enclave>        # check a running devnet from the outside
+bash scripts/check-observability.sh <enclave> # check its metrics, logs, and dashboards
 ```
 
 The tests that read YAML need PyYAML and skip without it. A change is not verified while they skip. With `CI` set, a missing PyYAML is an error.
@@ -61,7 +62,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | `docs/l1-lifecycle.md` | How the package activates an L1, step by step, and how to check it. |
 | `docs/observability.md` | The observability stack: dashboards, labels, and limits. |
 | `docs/adr/` | Architecture decision records. |
-| `scripts/` | `run.sh` (deploy), `check-devnet.sh` (check a running devnet), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`, `gen-dashboards.py`. |
+| `scripts/` | `run.sh` (deploy), `check-devnet.sh` (check a running devnet), `check-observability.sh` (check its observability stack), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`, `gen-dashboards.py`. |
 | `tests/` | Python unit tests. `tests/starlark.py` loads the Starlark modules in Python. |
 
 ## Where to make a change
@@ -74,7 +75,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | Bump a node image | `IMAGES` in `constants.star` → the commit in `tools/Dockerfile` and the version in `tools/go.mod` → regenerate `docs/config/` and review its hand-written files → the version in `README.md`, `AGENTS.md`, and `examples/pos.yml` (a test compares them) → live run of both examples |
 | Add a `lab` command | `tools/<concern>.go` → the command list in `tools/main.go` → the caller in `src/` |
 | Add a service | `src/<name>/launcher.star` with `launch(plan, args, ...)` → `main.star` or `src/l1/launcher.star` → image in `IMAGES` → the planning function of the launcher (`planned_nodes`, `planned`), if the service serves metrics |
-| Add or change a dashboard panel | `scripts/gen-dashboards.py` → `python3 scripts/gen-dashboards.py` → commit the JSON → live run, and look at the panel with data |
+| Add or change a dashboard panel | `scripts/gen-dashboards.py` → `python3 scripts/gen-dashboards.py` → commit the JSON → live run → `bash scripts/check-observability.sh <enclave>`, and look at the panel with data |
 | Change what Alloy collects | `static_files/observability/alloy/` → the target files in `src/observability/alloy.star` → `bash scripts/check-alloy.sh` → live run |
 | Bump an observability image | `IMAGES` in `constants.star` (digest of the multi-platform index) → the version in `README.md` and `examples/pos.yml` → `bash scripts/check-alloy.sh` → live run of `examples/pos.yml` |
 | Change a contract artifact | `contracts/` → `bash scripts/check-contracts.sh refresh` → review the diff |
@@ -141,7 +142,7 @@ These follow kurtosis-pos (`src/config/`, launcher contract) and kurtosis-cdk (`
 2. `python3 -m unittest discover -s tests` passes with PyYAML installed.
 3. `bash scripts/check-package.sh` plans every arguments file.
 4. `bash scripts/build.sh` passes if `tools/` changed. `bash scripts/check-alloy.sh` passes if `static_files/observability/alloy/` changed.
-5. `bash scripts/run.sh examples/poa.yml` passes if `src/` or `tools/` changed. Also run `examples/pos.yml` if the change touches staking, the bridge, or node config.
+5. `bash scripts/run.sh examples/poa.yml` passes if `src/` or `tools/` changed. Also run `examples/pos.yml` if the change touches staking, the bridge, node config, or the observability stack; then `bash scripts/check-observability.sh <enclave>` passes.
 6. Remove the enclaves that you started.
 
 ## Decisions and commits
