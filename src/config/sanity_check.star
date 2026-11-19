@@ -125,9 +125,14 @@ def check(args):
     if l1["validator_management"] not in modes:
         fail("l1.validator_management must be one of {}".format(modes))
 
-    for key in ["bridge", "metrics", "logs"]:
+    for key in ["bridge", "metrics", "logs", "dashboards"]:
         if type(args[key]) != "bool":
             fail("{} must be a boolean".format(key))
+    # Grafana shows what Prometheus and Loki store. Without both it is empty.
+    if args["dashboards"] and not (args["metrics"] or args["logs"]):
+        fail(
+            "dashboards needs metrics or logs: set one of them to true, or set dashboards to false"
+        )
 
     for name, image in args["images"].items():
         if type(image) != "string" or (image == "" and name != "tools"):

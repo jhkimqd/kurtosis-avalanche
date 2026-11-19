@@ -26,6 +26,7 @@ bash scripts/check-package.sh                 # lint, then plan every arguments 
 bash scripts/check-alloy.sh                   # load the Alloy pipelines in the pinned Alloy
 bash scripts/build.sh                         # build the tools image; the build runs the Go tests
 python3 scripts/gen-config-reference.py       # regenerate node.yml, l1-chain.yml, c-chain.yml
+python3 scripts/gen-dashboards.py             # regenerate the Grafana dashboards
 bash scripts/run.sh examples/poa.yml          # live run in a new enclave
 bash scripts/check-devnet.sh <enclave>        # check a running devnet from the outside
 ```
@@ -49,17 +50,18 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | `src/primary_network/launcher.star` | Primary Network validators. |
 | `src/l1/launcher.star` | L1 lifecycle (ACP-77) and PoS bootstrap sizing. |
 | `src/l1/signature_aggregator.star`, `src/l1/bridge.star` | Per-L1 support services. |
-| `src/observability/launcher.star` | The observability stack. One file per service: `alloy.star` (collector), `prometheus.star` (metrics store), `loki.star` (log store). |
+| `src/observability/launcher.star` | The observability stack. One file per service: `alloy.star` (collector), `prometheus.star` (metrics store), `loki.star` (log store), `grafana.star` (dashboards). |
 | `src/tools/launcher.star` | The tools service and the helpers that run `lab` in it. |
 | `tools/` | Go program `lab`: keys, genesis, transactions, checks. One file per concern; `main.go` lists the commands. |
-| `static_files/` | Base L1 genesis, the contract artifacts (`static_files/contracts/hashes.json` pins them), and the Alloy pipelines (`static_files/observability/alloy/`). |
+| `static_files/` | Base L1 genesis, the contract artifacts (`static_files/contracts/hashes.json` pins them), the Alloy pipelines (`static_files/observability/alloy/`), and the generated Grafana dashboards (`static_files/observability/grafana/dashboards/`). |
 | `contracts/` | Sources of the two test tokens, the nightly message receiver, and the reproducible artifact build. |
 | `examples/` | The two documented networks: `poa.yml`, `pos.yml`. |
 | `.github/configs/` | Arguments files for CI coverage only. |
 | `docs/config/` | Reference of the AvalancheGo options. |
 | `docs/l1-lifecycle.md` | How the package activates an L1, step by step, and how to check it. |
+| `docs/observability.md` | The observability stack: dashboards, labels, and limits. |
 | `docs/adr/` | Architecture decision records. |
-| `scripts/` | `run.sh` (deploy), `check-devnet.sh` (check a running devnet), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`. |
+| `scripts/` | `run.sh` (deploy), `check-devnet.sh` (check a running devnet), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`, `gen-dashboards.py`. |
 | `tests/` | Python unit tests. `tests/starlark.py` loads the Starlark modules in Python. |
 
 ## Where to make a change
@@ -72,6 +74,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | Bump a node image | `IMAGES` in `constants.star` → the commit in `tools/Dockerfile` and the version in `tools/go.mod` → regenerate `docs/config/` and review its hand-written files → the version in `README.md`, `AGENTS.md`, and `examples/pos.yml` (a test compares them) → live run of both examples |
 | Add a `lab` command | `tools/<concern>.go` → the command list in `tools/main.go` → the caller in `src/` |
 | Add a service | `src/<name>/launcher.star` with `launch(plan, args, ...)` → `main.star` or `src/l1/launcher.star` → image in `IMAGES` → the planning function of the launcher (`planned_nodes`, `planned`), if the service serves metrics |
+| Add or change a dashboard panel | `scripts/gen-dashboards.py` → `python3 scripts/gen-dashboards.py` → commit the JSON → live run, and look at the panel with data |
 | Change what Alloy collects | `static_files/observability/alloy/` → the target files in `src/observability/alloy.star` → `bash scripts/check-alloy.sh` → live run |
 | Bump an observability image | `IMAGES` in `constants.star` (digest of the multi-platform index) → the version in `README.md` and `examples/pos.yml` → `bash scripts/check-alloy.sh` → live run of `examples/pos.yml` |
 | Change a contract artifact | `contracts/` → `bash scripts/check-contracts.sh refresh` → review the diff |
@@ -91,7 +94,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | EWOQ private key | `0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027` (public; devnet only) |
 | ValidatorManager on every L1 | `0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25` |
 
-Service names: `primary-<n>`, `l1-<i>-validator-<n>`, `l1-<i>-rpc-<n>`, `l1-<i>-bootstrap-<n>` (temporary, PoS setup only), `l1-<i>-aggregator`, `l1-<i>-relayer`, `alloy`, `prometheus`, `loki`, `tools`. All indexes start at 0.
+Service names: `primary-<n>`, `l1-<i>-validator-<n>`, `l1-<i>-rpc-<n>`, `l1-<i>-bootstrap-<n>` (temporary, PoS setup only), `l1-<i>-aggregator`, `l1-<i>-relayer`, `alloy`, `prometheus`, `loki`, `grafana`, `tools`. All indexes start at 0.
 
 Labels on every metric and log line of a node: `job` (`avalanche`), `node` (the service name), `role`, and `l1` (L1 nodes only). Logs add `logger` (the log file: `main`, `P`, `X`, `C`, or a blockchain ID) and `level`.
 
@@ -127,7 +130,8 @@ These follow kurtosis-pos (`src/config/`, launcher contract) and kurtosis-cdk (`
 - Section headers in Starlark and YAML use this form: `# ── Name ───`.
 - A comment states what the code does or why. It does not tell the history of a change.
 - In an arguments file, a comment above a key says what the key does, its unit, and its limits.
-- `docs/config/node.yml`, `l1-chain.yml`, and `c-chain.yml` are generated. Change `scripts/gen-config-reference.py`, not the files. The other files in `docs/config/` are written by hand from the upstream Go sources; cite the source file.
+- `docs/config/node.yml`, `l1-chain.yml`, and `c-chain.yml` are generated. Change `scripts/gen-config-reference.py`, not the files.
+- The dashboards in `static_files/observability/grafana/dashboards/` are generated. Change `scripts/gen-dashboards.py`, not the files. Give every panel a description that says what the panel shows and how to read it. Use only a metric that you saw on a live devnet. The other files in `docs/config/` are written by hand from the upstream Go sources; cite the source file.
 - Keep `README.md` short: what the package does, how to run it, how to configure it. Put detail in `docs/`.
 - State only what you verified against the code, the pinned upstream commit, or a live run.
 

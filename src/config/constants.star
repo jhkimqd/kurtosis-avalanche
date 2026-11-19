@@ -39,6 +39,8 @@ IMAGES = {
     "icm_relayer": "avaplatform/icm-relayer@sha256:57bb6048b78bb7728788ced10f7f4e9c7dce42303858f3bdbd78f5d810c5dc05",
     # Alloy v1.22.0. Collects the metrics and logs and sends them to the stores.
     "alloy": "grafana/alloy@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189",
+    # Grafana v13.3.1. Shows the metrics and logs on dashboards.
+    "grafana": "grafana/grafana@sha256:0615ec4fbd4072004b7d86b46ded63013a74b7d6eb1119273dd89e8fa25c13cf",
     # Loki v3.7.10. Stores the logs.
     "loki": "grafana/loki@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7",
     # Prometheus v3.2.1. Stores the metrics.
@@ -63,6 +65,7 @@ ICM_RELAYER_API_PORT_NUMBER = 9091
 ICM_RELAYER_METRICS_PORT_NUMBER = 9092
 
 ALLOY_PORT_NUMBER = 12345
+GRAFANA_PORT_NUMBER = 3000
 LOKI_PORT_NUMBER = 3100
 PROMETHEUS_PORT_NUMBER = 9090
 
@@ -95,6 +98,7 @@ ALLOY_NODE_MEMORY = 48
 PROMETHEUS_BASE_MEMORY = 384
 PROMETHEUS_NODE_MEMORY = 32
 LOKI_MAX_MEMORY = 512
+GRAFANA_MAX_MEMORY = 512
 
 # ── L1 setup ─────────────────────────────────────────────────────────────────
 

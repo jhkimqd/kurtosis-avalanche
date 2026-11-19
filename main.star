@@ -78,6 +78,7 @@ def run(plan, args={}):
                 ("prometheus_url", observability.prometheus_url),
                 ("loki_url", observability.loki_url),
                 ("alloy_url", observability.alloy_url),
+                ("grafana_url", observability.grafana_url),
             ]
             if url
         },

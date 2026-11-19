@@ -30,7 +30,7 @@ kurtosis enclave rm -f "$enclave"
 
 ## Version watch
 
-The **version watch** workflow runs daily at 06:43 UTC, on manual dispatch, and when its inputs change. It compares the recorded versions of both node images, the signature aggregator, ICM relayer, Alloy, Loki, Prometheus, Kurtosis CLI, and Foundry with stable GitHub releases. ICM component releases are checked separately, excluding prerelease and network-specific tags.
+The **version watch** workflow runs daily at 06:43 UTC, on manual dispatch, and when its inputs change. It compares the recorded versions of both node images, the signature aggregator, ICM relayer, Alloy, Grafana, Loki, Prometheus, Kurtosis CLI, and Foundry with stable GitHub releases. ICM component releases are checked separately, excluding prerelease and network-specific tags.
 
 GitHub runs [scheduled workflows from the default branch](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule). Merge the workflows there to activate their daily schedules.
 

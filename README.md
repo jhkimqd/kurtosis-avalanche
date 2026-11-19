@@ -2,7 +2,7 @@
 
 A [Kurtosis](https://docs.kurtosis.com/) package for local Avalanche devnets. It starts a **Primary Network** (P-, X-, and C-Chain) and one or more **Avalanche L1s**: Subnet-EVM blockchains with their own validators.
 
-The package registers each L1 and its validators, supports Proof of Authority and Proof of Stake, and can add a token bridge and the collection of metrics and logs.
+The package registers each L1 and its validators, supports Proof of Authority and Proof of Stake, and can add a token bridge and an observability stack: metrics, logs, and Grafana dashboards.
 
 > For local development and testing only. Funded accounts use public private keys. Never use these keys for real funds.
 
@@ -47,7 +47,8 @@ flowchart TB
             C["alloy<br/>Collector"]
             M["prometheus<br/>Metrics store"]
             L["loki<br/>Log store"]
-            T ~~~ C ~~~ M ~~~ L
+            G["grafana<br/>Dashboards"]
+            T ~~~ C ~~~ M ~~~ L ~~~ G
         end
         primary ---|"registered on P-Chain"| l1
         l1 ~~~ support
@@ -69,6 +70,7 @@ The first run downloads images and builds the tools image from source. Default i
 | Signature aggregator | v0.6.0 |
 | ICM relayer | v1.8.2 |
 | Alloy | v1.22.0 |
+| Grafana | v13.3.1 |
 | Loki | v3.7.10 |
 | Prometheus | v3.2.1 |
 
@@ -87,7 +89,7 @@ Choose an example or supply your own arguments file:
 | File | Network |
 | --- | --- |
 | [examples/poa.yml](examples/poa.yml) | A minimal Proof of Authority network. |
-| [examples/pos.yml](examples/pos.yml) | Proof of Stake with a token bridge and metrics. Shows every argument with its default. |
+| [examples/pos.yml](examples/pos.yml) | Proof of Stake with a token bridge and the observability stack. Shows every argument with its default. |
 
 Use a fresh enclave name for each deployment. To remove the network:
 
@@ -109,6 +111,7 @@ Pass your YAML file with `--args-file`. Without one, the package uses the defaul
 | `bridge` | Deploy a token bridge between the C-Chain and each L1. |
 | `metrics` | Collect metrics: Alloy scrapes every node, relayer, and signature aggregator; Prometheus stores the samples. |
 | `logs` | Collect logs: every node writes its log files to a shared volume; Alloy reads them and Loki stores the lines. |
+| `dashboards` | Run Grafana with dashboards for the collected metrics and logs. |
 | `images` | Override service images. |
 
 The remaining arguments configure AvalancheGo and Subnet-EVM. The reference files explain each option and its default:
@@ -123,6 +126,16 @@ The remaining arguments configure AvalancheGo and Subnet-EVM. The reference file
 | `primary_network.p_chain_config`, `primary_network.x_chain_config` | [P-Chain and X-Chain settings](docs/config/p-x-chain.yml) |
 
 Unknown arguments and options managed by the package, such as ports and key paths, are rejected. See the [L1 lifecycle guide](docs/l1-lifecycle.md) for deployment details.
+
+## Observe
+
+With the default arguments the package starts Grafana before the network, so the dashboards show the deployment as it happens. Open the address that this command prints; no login is needed:
+
+```sh
+kurtosis port print avalanche grafana http
+```
+
+Grafana opens on an overview of the devnet. Further dashboards cover one L1, the Primary Network, interchain messaging, and the logs of every node. See the [observability guide](docs/observability.md) for the dashboards, the labels, and the limits.
 
 ## Endpoints and accounts
 

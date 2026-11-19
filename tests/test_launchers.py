@@ -18,6 +18,8 @@ BOOTSTRAP = starlark.SimpleNamespace(node_id="NodeID-0", ip_address="10.0.0.1")
 L1 = starlark.SimpleNamespace(
     subnet_id="subnet", blockchain_id="chain", config_artifact="l1-0-config"
 )
+# The services of the observability stack, in the order in which they start.
+STACK = ["prometheus", "loki", "alloy", "grafana"]
 
 
 class NodeTest(unittest.TestCase):
@@ -163,6 +165,7 @@ class DeploymentTest(unittest.TestCase):
             "bridge": False,
             "metrics": False,
             "logs": False,
+            "dashboards": False,
         }
         plan, manifest, commands = self.run_package(args)
         self.assertEqual(
@@ -202,7 +205,7 @@ class DeploymentTest(unittest.TestCase):
         validators = ["l1-0-validator-{}".format(i) for i in range(5)]
         self.assertEqual(
             services,
-            ["tools", "prometheus", "loki", "alloy", "primary-0", "primary-1", "primary-2"] + bootstrap
+            ["tools"] + STACK + ["primary-0", "primary-1", "primary-2"] + bootstrap
             + ["l1-0-rpc-0", "l1-0-aggregator", "l1-0-relayer"] + validators,
         )
         # Identities: 3 primary, then validators 3..7, RPC 8, bootstrap 9..12.
@@ -221,7 +224,8 @@ class DeploymentTest(unittest.TestCase):
         )
         self.assertEqual(
             manifest["observability"],
-            {"prometheus_url": "http://prometheus:9090", "loki_url": "http://loki:3100", "alloy_url": "http://alloy:12345"},
+            {"prometheus_url": "http://prometheus:9090", "loki_url": "http://loki:3100",
+             "alloy_url": "http://alloy:12345", "grafana_url": "http://grafana:3000"},
         )
         self.assertEqual(manifest["l1s"][0]["staking_manager_address"], "<address>")
         self.assertEqual(manifest["l1s"][0]["bridge"]["home"], "<home>")
@@ -314,7 +318,7 @@ class ObservabilityTest(unittest.TestCase):
                     planned += [node.name for node in l1.nodes + l1.bootstrap_nodes]
                     addresses += [target.address for target in l1.metrics_targets]
                 planned += [address.split(":")[0] for address in addresses]
-                self.assertEqual(sorted(planned), sorted(set(services) - {"tools", "prometheus", "loki", "alloy"}))
+                self.assertEqual(sorted(planned), sorted(set(services) - {"tools"} - set(STACK)))
                 # Each support service declares the port that Alloy scrapes.
                 for address in addresses:
                     name, port = address.split(":")
@@ -323,7 +327,7 @@ class ObservabilityTest(unittest.TestCase):
     def test_prometheus_stores_and_alloy_scrapes(self):
         plan, services = self.run_package({})
         # The stack starts before the network, the stores before the collector.
-        self.assertEqual(list(services)[:5], ["tools", "prometheus", "loki", "alloy", "primary-0"])
+        self.assertEqual(list(services)[:6], ["tools"] + STACK + ["primary-0"])
         prometheus = services["prometheus"]
         self.assertIn("--web.enable-remote-write-receiver", prometheus.cmd)
         self.assertNotIn("scrape_configs", plan.rendered("prometheus-config")["prometheus.yml"])
@@ -374,14 +378,15 @@ class ObservabilityTest(unittest.TestCase):
 
     def test_each_switch_starts_only_its_services(self):
         for args, expected in (
-            ({}, ["prometheus", "loki", "alloy"]),
-            ({"logs": False}, ["prometheus", "alloy"]),
-            ({"metrics": False}, ["loki", "alloy"]),
-            ({"metrics": False, "logs": False}, []),
+            ({}, STACK),
+            ({"dashboards": False}, ["prometheus", "loki", "alloy"]),
+            ({"logs": False}, ["prometheus", "alloy", "grafana"]),
+            ({"metrics": False}, ["loki", "alloy", "grafana"]),
+            ({"metrics": False, "logs": False, "dashboards": False}, []),
         ):
             with self.subTest(args=args):
                 plan, services = self.run_package(args)
-                stack = [name for name in services if name in ("prometheus", "loki", "alloy")]
+                stack = [name for name in services if name in STACK]
                 self.assertEqual(stack, expected)
                 manifest = main.run(starlark.FakePlan(), args)
                 self.assertEqual(sorted(manifest["observability"]), sorted(name + "_url" for name in expected))
@@ -400,6 +405,47 @@ class ObservabilityTest(unittest.TestCase):
                 self.assertEqual("logs.json" in plan.rendered("alloy-targets"), "loki" in expected)
                 self.assertEqual("avalanche.json" in plan.rendered("alloy-targets"), "prometheus" in expected)
                 self.assertEqual("/logs" in services["primary-0"].files, "loki" in expected)
+                if "grafana" not in expected:
+                    continue
+                # Grafana gets a datasource and a dashboard group only for a
+                # store that runs, and opens on a dashboard that exists.
+                grafana = services["grafana"]
+                provisioning = plan.rendered("grafana-provisioning")
+                datasources = provisioning["datasources/datasources.yml"]["datasources"]
+                self.assertEqual(
+                    [(source["uid"], source["url"]) for source in datasources],
+                    [(store, manifest["observability"][store + "_url"]) for store in ("prometheus", "loki") if store in expected],
+                )
+                self.assertEqual([source["isDefault"] for source in datasources].count(True), 1)
+                groups = [group for group, store in (("metrics", "prometheus"), ("logs", "loki")) if store in expected]
+                self.assertEqual(
+                    {path: artifact for path, artifact in grafana.files.items() if path != "/config"},
+                    {"/dashboards/" + group: "grafana-{}-dashboards".format(group) for group in groups},
+                )
+                home = grafana.env_vars["GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH"]
+                self.assertTrue(home.startswith("/dashboards/{}/".format(groups[0])))
+                source = starlark.ROOT / "static_files/observability/grafana/dashboards"
+                self.assertTrue((source / home.removeprefix("/dashboards/")).is_file())
+
+    def test_grafana_is_open_to_look_at_and_stays_offline(self):
+        plan, services = self.run_package({})
+        grafana = services["grafana"]
+        self.assertEqual(grafana.image, constants.IMAGES["grafana"])
+        self.assertEqual(grafana.env_vars["GF_AUTH_ANONYMOUS_ENABLED"], "true")
+        # Grafana 13 supports no other role for a visitor without a login.
+        self.assertEqual(grafana.env_vars["GF_AUTH_ANONYMOUS_ORG_ROLE"], "Viewer")
+        for setting in ("GF_ANALYTICS_REPORTING_ENABLED", "GF_ANALYTICS_CHECK_FOR_UPDATES",
+                        "GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES", "GF_NEWS_NEWS_FEED_ENABLED"):
+            self.assertEqual(grafana.env_vars[setting], "false")
+        provider = plan.rendered("grafana-provisioning")["dashboards/dashboards.yml"]["providers"][0]
+        self.assertEqual(provider["options"]["path"], "/dashboards")
+        self.assertFalse(provider["allowUiUpdates"])
+        # Every uploaded directory exists and holds dashboards.
+        uploads = [kwargs for name, kwargs in plan.calls if name == "upload_files" and kwargs["name"].startswith("grafana-")]
+        self.assertEqual(len(uploads), 2)
+        for upload in uploads:
+            directory = (starlark.ROOT / "src/observability" / upload["src"]).resolve()
+            self.assertTrue(list(directory.glob("*.json")), upload["src"])
 
     def test_log_targets_name_the_log_files_of_every_node(self):
         plan, services = self.run_package({})
@@ -408,7 +454,7 @@ class ObservabilityTest(unittest.TestCase):
         # Every node that ever runs, the temporary ones included.
         self.assertEqual(
             sorted(target["labels"]["node"] for target in targets),
-            sorted(set(services) - {"tools", "prometheus", "loki", "alloy", "l1-0-aggregator", "l1-0-relayer"}),
+            sorted(set(services) - {"tools", "l1-0-aggregator", "l1-0-relayer"} - set(STACK)),
         )
         metrics = {target["labels"]["node"]: target["labels"] for target in plan.rendered("alloy-targets")["avalanche.json"]}
         for target in targets:

@@ -58,6 +58,8 @@ DEFAULT_ARGS = {
     # Collect the logs of every node: Alloy reads the log files, and Loki
     # stores the lines.
     "logs": True,
+    # Run Grafana with dashboards for the collected metrics and logs.
+    "dashboards": True,
     # Container images: see `constants.IMAGES`.
     "images": constants.IMAGES,
 }
