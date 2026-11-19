@@ -242,8 +242,8 @@ node_config:
   # ── Logging ───────────────────────────────────────────────────────────────
 
   # Logging directory for Avalanche.
-  # Type: string.
-  #log-dir: "$AVALANCHEGO_DATA_DIR/logs"
+  # Type: string. Managed by the package.
+  # log-dir (managed)
 
   # Disables displaying plugin logs in stdout.
   # Type: bool.

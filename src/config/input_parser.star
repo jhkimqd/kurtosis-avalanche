@@ -52,8 +52,14 @@ DEFAULT_ARGS = {
     "node_config": {},
     # Deploy an ICM token bridge between the C-Chain and each L1, with a relayer.
     "bridge": True,
-    # Run Prometheus and scrape every node.
+    # Collect the metrics of every node and support service: Alloy scrapes
+    # them, and Prometheus stores them.
     "metrics": True,
+    # Collect the logs of every node: Alloy reads the log files, and Loki
+    # stores the lines.
+    "logs": True,
+    # Run Grafana with dashboards for the collected metrics and logs.
+    "dashboards": True,
     # Container images: see `constants.IMAGES`.
     "images": constants.IMAGES,
 }

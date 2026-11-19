@@ -14,7 +14,8 @@ constants = import_module("../config/constants.star")
 CONFIG_PATH = "/config"  # node.json, and the P-, X-, and C-Chain configs
 L1_CONFIG_PATH = "/l1"  # chain config and subnet config of the node's L1
 NETWORK_PATH = "/network"  # genesis, upgrade schedule, node keys
-DATA_PATH = "/data"  # database and logs
+DATA_PATH = "/data"  # database, and the logs when they are not collected
+LOGS_PATH = "/logs"  # log files of every node, when they are collected
 
 
 def launch(plan, args, network, name, role, index, bootstrap_peer=None, l1=None):
@@ -53,6 +54,7 @@ def launch(plan, args, network, name, role, index, bootstrap_peer=None, l1=None)
             "staking-signer-key-file": keys_path + "/signer.key",
             # Storage and listeners.
             "data-dir": DATA_PATH,
+            "log-dir": log_dir(name) if args["logs"] else DATA_PATH + "/logs",
             "http-host": "0.0.0.0",
             "http-port": constants.NODE_HTTP_PORT_NUMBER,
             "staking-port": constants.NODE_STAKING_PORT_NUMBER,
@@ -72,6 +74,10 @@ def launch(plan, args, network, name, role, index, bootstrap_peer=None, l1=None)
     # A temporary node keeps its data in the container, which is removed with it.
     if not is_bootstrap:
         files[DATA_PATH] = Directory(persistent_key=name + "-data")
+    # Every node writes its log files to one shared volume, which Alloy reads.
+    # The logs of a temporary node therefore outlive the node.
+    if args["logs"]:
+        files[LOGS_PATH] = Directory(persistent_key=constants.NODE_LOGS_VOLUME_KEY)
     config_files = {"node.json": flags}
     if is_primary:
         flags["chain-config-dir"] = CONFIG_PATH + "/chains"
@@ -140,6 +146,15 @@ def launch(plan, args, network, name, role, index, bootstrap_peer=None, l1=None)
         ip_address=service.ip_address,
         rpc_url="http://{}:{}".format(name, constants.NODE_HTTP_PORT_NUMBER),
     )
+
+
+def log_dir(name):
+    """Returns the directory of a node's log files when logs are collected.
+
+    AvalancheGo writes one file per logger: `main.log`, and for each chain
+    `P.log`, `X.log`, `C.log`, or `<blockchain ID>.log`.
+    """
+    return "{}/{}".format(LOGS_PATH, name)
 
 
 def _json_file(content):

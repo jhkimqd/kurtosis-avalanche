@@ -1,6 +1,7 @@
 """Plan construction: which services and commands each launcher produces."""
 
 import json
+import re
 import unittest
 
 import starlark
@@ -17,6 +18,8 @@ BOOTSTRAP = starlark.SimpleNamespace(node_id="NodeID-0", ip_address="10.0.0.1")
 L1 = starlark.SimpleNamespace(
     subnet_id="subnet", blockchain_id="chain", config_artifact="l1-0-config"
 )
+# The services of the observability stack, in the order in which they start.
+STACK = ["prometheus", "loki", "alloy", "grafana"]
 
 
 class NodeTest(unittest.TestCase):
@@ -52,6 +55,16 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(service.files["/network"], "network")
         self.assertEqual(service.max_memory, constants.NODE_MAX_MEMORY)
         self.assertEqual(node.rpc_url, "http://primary-0:9650")
+        # The node writes its log files to the volume that Alloy reads.
+        self.assertEqual(flags["log-dir"], "/logs/primary-0")
+        self.assertEqual(flags["log-dir"], node_launcher.log_dir("primary-0"))
+        self.assertEqual(service.files["/logs"].persistent_key, constants.NODE_LOGS_VOLUME_KEY)
+
+    def test_without_log_collection_the_logs_stay_with_the_node(self):
+        plan, node, service, files = self.launch({"logs": False}, name="primary-0", role="primary", index=0)
+        # The default of AvalancheGo: <data-dir>/logs.
+        self.assertEqual(files["node.json"]["log-dir"], "/data/logs")
+        self.assertNotIn("/logs", service.files)
 
     def test_l1_node(self):
         args = {
@@ -81,14 +94,21 @@ class NodeTest(unittest.TestCase):
 
     def test_managed_flags_win_and_are_all_rejected_as_overrides(self):
         sanity_check = starlark.load("src/config/sanity_check.star")
+        for role, name in (("bootstrap", "l1-0-bootstrap-0"), ("validator", "l1-0-validator-0"), ("primary", "primary-1")):
+            with self.subTest(role=role):
+                plan, node, service, files = self.launch(
+                    {}, name=name, role=role, index=3, bootstrap_peer=BOOTSTRAP, l1=None if role == "primary" else L1
+                )
+                package_flags = set(files["node.json"]) - set(input_parser.DEFAULT_NODE_CONFIG)
+                self.assertLessEqual(package_flags, set(sanity_check.MANAGED_NODE_FLAGS))
         plan, node, service, files = self.launch(
             {}, name="l1-0-bootstrap-0", role="bootstrap", index=3, bootstrap_peer=BOOTSTRAP, l1=L1
         )
-        package_flags = set(files["node.json"]) - set(input_parser.DEFAULT_NODE_CONFIG)
-        self.assertLessEqual(package_flags, set(sanity_check.MANAGED_NODE_FLAGS))
         self.assertEqual(service.max_memory, constants.BOOTSTRAP_NODE_MAX_MEMORY)
-        # A temporary node leaves no volume behind.
+        # A temporary node leaves no data volume behind. Its log files stay in
+        # the shared volume, so that its part of the setup can be read later.
         self.assertNotIn("/data", service.files)
+        self.assertEqual(service.files["/logs"].persistent_key, constants.NODE_LOGS_VOLUME_KEY)
 
 
 class BootstrapSizingTest(unittest.TestCase):
@@ -144,6 +164,8 @@ class DeploymentTest(unittest.TestCase):
             },
             "bridge": False,
             "metrics": False,
+            "logs": False,
+            "dashboards": False,
         }
         plan, manifest, commands = self.run_package(args)
         self.assertEqual(
@@ -173,6 +195,7 @@ class DeploymentTest(unittest.TestCase):
         self.assertNotIn("bridge", l1)
         self.assertNotIn("staking_manager_address", l1)
         self.assertEqual(manifest["primary_network"]["c_chain_rpc_url"], "http://primary-0:9650/ext/bc/C/rpc")
+        self.assertEqual(manifest["observability"], {})
         self.assertFalse([name for name, _ in plan.calls if name == "remove_service"])
 
     def test_pos_defaults(self):
@@ -182,8 +205,8 @@ class DeploymentTest(unittest.TestCase):
         validators = ["l1-0-validator-{}".format(i) for i in range(5)]
         self.assertEqual(
             services,
-            ["tools", "primary-0", "primary-1", "primary-2"] + bootstrap
-            + ["l1-0-rpc-0", "l1-0-aggregator", "l1-0-relayer"] + validators + ["prometheus"],
+            ["tools"] + STACK + ["primary-0", "primary-1", "primary-2"] + bootstrap
+            + ["l1-0-rpc-0", "l1-0-aggregator", "l1-0-relayer"] + validators,
         )
         # Identities: 3 primary, then validators 3..7, RPC 8, bootstrap 9..12.
         self.assertEqual(self.by_name(commands, "prepare")[0][3:], ["13", "3"])
@@ -193,11 +216,16 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(
             [kwargs["name"] for name, kwargs in plan.calls if name == "remove_service"], bootstrap
         )
-        # Prometheus scrapes the permanent nodes only.
-        targets = plan.rendered("prometheus-config")["prometheus.yml"]["scrape_configs"][0]["static_configs"]
+        # Alloy scrapes the permanent nodes only.
+        targets = plan.rendered("alloy-targets")["avalanche.json"]
         self.assertEqual(
             [target["labels"]["node"] for target in targets],
             ["primary-0", "primary-1", "primary-2"] + validators + ["l1-0-rpc-0"],
+        )
+        self.assertEqual(
+            manifest["observability"],
+            {"prometheus_url": "http://prometheus:9090", "loki_url": "http://loki:3100",
+             "alloy_url": "http://alloy:12345", "grafana_url": "http://grafana:3000"},
         )
         self.assertEqual(manifest["l1s"][0]["staking_manager_address"], "<address>")
         self.assertEqual(manifest["l1s"][0]["bridge"]["home"], "<home>")
@@ -265,6 +293,210 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual([command[5] for command in self.by_name(commands, "create")], ["77777", "77778"])
         self.assertEqual([l1["name"] for l1 in manifest["l1s"]], ["l1-0", "l1-1"])
         self.assertIn("l1-1-rpc-0", plan.services())
+
+
+class ObservabilityTest(unittest.TestCase):
+    def run_package(self, args):
+        plan = starlark.FakePlan()
+        main.run(plan, args)
+        return plan, plan.services()
+
+    def test_the_planned_services_are_the_started_services(self):
+        # The stack starts first and names its targets before they exist.
+        for args in (
+            {},
+            {"l1": {"validator_management": "poa"}, "bridge": False},
+            {"l1": {"count": 2, "validator_management": "erc20-pos", "validator_count": 20, "rpc_count": 2}},
+        ):
+            with self.subTest(args=args):
+                plan, services = self.run_package(args)
+                parsed = input_parser.parse(args)
+                planned = [node.name for node in primary_network_launcher.planned_nodes(parsed)]
+                addresses = []
+                for l1_index in range(parsed["l1"]["count"]):
+                    l1 = l1_launcher.planned(parsed, l1_index)
+                    planned += [node.name for node in l1.nodes + l1.bootstrap_nodes]
+                    addresses += [target.address for target in l1.metrics_targets]
+                planned += [address.split(":")[0] for address in addresses]
+                self.assertEqual(sorted(planned), sorted(set(services) - {"tools"} - set(STACK)))
+                # Each support service declares the port that Alloy scrapes.
+                for address in addresses:
+                    name, port = address.split(":")
+                    self.assertEqual(services[name].ports["metrics"].number, int(port))
+
+    def test_prometheus_stores_and_alloy_scrapes(self):
+        plan, services = self.run_package({})
+        # The stack starts before the network, the stores before the collector.
+        self.assertEqual(list(services)[:6], ["tools"] + STACK + ["primary-0"])
+        prometheus = services["prometheus"]
+        self.assertIn("--web.enable-remote-write-receiver", prometheus.cmd)
+        self.assertNotIn("scrape_configs", plan.rendered("prometheus-config")["prometheus.yml"])
+        alloy = services["alloy"]
+        self.assertEqual(alloy.image, constants.IMAGES["alloy"])
+        self.assertEqual(alloy.env_vars["PROMETHEUS_REMOTE_WRITE_URL"], "http://prometheus:9090/api/v1/write")
+        self.assertIn("--disable-reporting", alloy.cmd)
+        self.assertEqual(alloy.env_vars["LOKI_PUSH_URL"], "http://loki:3100/loki/api/v1/push")
+        self.assertEqual(alloy.files["/etc/alloy"].artifact_names, ["alloy-metrics-pipeline", "alloy-logs-pipeline"])
+        self.assertEqual(alloy.files["/logs"].persistent_key, constants.NODE_LOGS_VOLUME_KEY)
+        self.assertEqual((alloy.user.uid, alloy.user.gid), (0, 0))
+        self.assertEqual(services["loki"].image, constants.IMAGES["loki"])
+        loki = plan.rendered("loki-config")["config.yaml"]
+        self.assertFalse(loki["analytics"]["reporting_enabled"])
+        # A CI runner with a 93% full disk lost every log line to the default of 0.9.
+        self.assertEqual(loki["ingester"]["wal"]["disk_full_threshold"], 0)
+        # Nine nodes: the limits grow with the network.
+        self.assertEqual(alloy.max_memory, constants.ALLOY_BASE_MEMORY + 9 * constants.ALLOY_NODE_MEMORY)
+        self.assertEqual(prometheus.max_memory, constants.PROMETHEUS_BASE_MEMORY + 9 * constants.PROMETHEUS_NODE_MEMORY)
+
+    def test_targets_and_labels(self):
+        plan, _ = self.run_package({"l1": {"count": 2}})
+        targets = plan.rendered("alloy-targets")
+        # The pipeline reads one file per job; its `job_name` is the constant.
+        pipeline = (starlark.ROOT / "static_files/observability/alloy/metrics.alloy").read_text()
+        self.assertEqual(
+            set(targets), {job + ".json" for job in vars(constants.METRICS_JOB).values()} | {"logs.json"}
+        )
+        self.assertEqual(
+            sorted(re.findall(r'"/etc/alloy-targets/(.+)\.json"', pipeline)),
+            sorted(re.findall(r'job_name += "(.+)"', pipeline)),
+        )
+        self.assertEqual(
+            set(re.findall(r'job_name += "(.+)"', pipeline)), set(vars(constants.METRICS_JOB).values())
+        )
+        nodes = {target["labels"]["node"]: target for target in targets["avalanche.json"]}
+        self.assertEqual(nodes["primary-0"], {"targets": ["primary-0:9650"], "labels": {"node": "primary-0", "role": "primary"}})
+        self.assertEqual(nodes["l1-1-rpc-0"]["labels"], {"node": "l1-1-rpc-0", "role": "rpc", "l1": "l1-1"})
+        self.assertFalse([name for name in nodes if "bootstrap" in name])
+        self.assertEqual(
+            targets["icm-relayer.json"],
+            [{"targets": ["l1-{}-relayer:9092".format(i)], "labels": {"l1": "l1-{}".format(i)}} for i in range(2)],
+        )
+        self.assertEqual(
+            [target["targets"] for target in targets["signature-aggregator.json"]],
+            [["l1-0-aggregator:8081"], ["l1-1-aggregator:8081"]],
+        )
+        # Without a bridge no relayer runs; its target file is an empty list.
+        plan, _ = self.run_package({"bridge": False})
+        self.assertEqual(plan.rendered("alloy-targets")["icm-relayer.json"], [])
+
+    def test_each_switch_starts_only_its_services(self):
+        for args, expected in (
+            ({}, STACK),
+            ({"dashboards": False}, ["prometheus", "loki", "alloy"]),
+            ({"logs": False}, ["prometheus", "alloy", "grafana"]),
+            ({"metrics": False}, ["loki", "alloy", "grafana"]),
+            ({"metrics": False, "logs": False, "dashboards": False}, []),
+        ):
+            with self.subTest(args=args):
+                plan, services = self.run_package(args)
+                stack = [name for name in services if name in STACK]
+                self.assertEqual(stack, expected)
+                manifest = main.run(starlark.FakePlan(), args)
+                self.assertEqual(sorted(manifest["observability"]), sorted(name + "_url" for name in expected))
+                if not expected:
+                    continue
+                # Alloy gets a pipeline, a target file, and an address only
+                # for a store that runs.
+                alloy = services["alloy"]
+                self.assertEqual(
+                    alloy.files["/etc/alloy"].artifact_names,
+                    ["alloy-{}-pipeline".format(kind) for kind, store in (("metrics", "prometheus"), ("logs", "loki")) if store in expected],
+                )
+                self.assertEqual("PROMETHEUS_REMOTE_WRITE_URL" in alloy.env_vars, "prometheus" in expected)
+                self.assertEqual("LOKI_PUSH_URL" in alloy.env_vars, "loki" in expected)
+                self.assertEqual("/logs" in alloy.files, "loki" in expected)
+                self.assertEqual("logs.json" in plan.rendered("alloy-targets"), "loki" in expected)
+                self.assertEqual("avalanche.json" in plan.rendered("alloy-targets"), "prometheus" in expected)
+                self.assertEqual("/logs" in services["primary-0"].files, "loki" in expected)
+                if "grafana" not in expected:
+                    continue
+                # Grafana gets a datasource and a dashboard group only for a
+                # store that runs, and opens on a dashboard that exists.
+                grafana = services["grafana"]
+                provisioning = plan.rendered("grafana-provisioning")
+                datasources = provisioning["datasources/datasources.yml"]["datasources"]
+                self.assertEqual(
+                    [(source["uid"], source["url"]) for source in datasources],
+                    [(store, manifest["observability"][store + "_url"]) for store in ("prometheus", "loki") if store in expected],
+                )
+                self.assertEqual([source["isDefault"] for source in datasources].count(True), 1)
+                groups = [group for group, store in (("metrics", "prometheus"), ("logs", "loki")) if store in expected]
+                self.assertEqual(
+                    {path: artifact for path, artifact in grafana.files.items() if path != "/config"},
+                    {"/dashboards/" + group: "grafana-{}-dashboards".format(group) for group in groups},
+                )
+                home = grafana.env_vars["GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH"]
+                self.assertTrue(home.startswith("/dashboards/{}/".format(groups[0])))
+                source = starlark.ROOT / "static_files/observability/grafana/dashboards"
+                self.assertTrue((source / home.removeprefix("/dashboards/")).is_file())
+
+    def test_grafana_is_open_to_look_at_and_stays_offline(self):
+        plan, services = self.run_package({})
+        grafana = services["grafana"]
+        self.assertEqual(grafana.image, constants.IMAGES["grafana"])
+        self.assertEqual(grafana.env_vars["GF_AUTH_ANONYMOUS_ENABLED"], "true")
+        # Grafana 13 supports no other role for a visitor without a login.
+        self.assertEqual(grafana.env_vars["GF_AUTH_ANONYMOUS_ORG_ROLE"], "Viewer")
+        for setting in ("GF_ANALYTICS_REPORTING_ENABLED", "GF_ANALYTICS_CHECK_FOR_UPDATES",
+                        "GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES", "GF_NEWS_NEWS_FEED_ENABLED"):
+            self.assertEqual(grafana.env_vars[setting], "false")
+        provider = plan.rendered("grafana-provisioning")["dashboards/dashboards.yml"]["providers"][0]
+        self.assertEqual(provider["options"]["path"], "/dashboards")
+        self.assertFalse(provider["allowUiUpdates"])
+        # Every uploaded directory exists and holds dashboards.
+        uploads = [kwargs for name, kwargs in plan.calls if name == "upload_files" and kwargs["name"].startswith("grafana-")]
+        self.assertEqual(len(uploads), 2)
+        for upload in uploads:
+            directory = (starlark.ROOT / "src/observability" / upload["src"]).resolve()
+            self.assertTrue(list(directory.glob("*.json")), upload["src"])
+
+    def test_log_targets_name_the_log_files_of_every_node(self):
+        plan, services = self.run_package({})
+        targets = plan.rendered("alloy-targets")["logs.json"]
+        bootstrap = ["l1-0-bootstrap-{}".format(i) for i in range(4)]
+        # Every node that ever runs, the temporary ones included.
+        self.assertEqual(
+            sorted(target["labels"]["node"] for target in targets),
+            sorted(set(services) - {"tools", "l1-0-aggregator", "l1-0-relayer"} - set(STACK)),
+        )
+        metrics = {target["labels"]["node"]: target["labels"] for target in plan.rendered("alloy-targets")["avalanche.json"]}
+        for target in targets:
+            labels = dict(target["labels"])
+            node = labels["node"]
+            with self.subTest(node=node):
+                # Without an address a file_sd entry yields no target at all.
+                self.assertEqual(target["targets"], ["localhost"])
+                log_dir = plan.rendered(node + "-config")["node.json"]["log-dir"]
+                self.assertEqual(labels.pop("__path__"), log_dir + "/*.log")
+                self.assertTrue(labels.pop("__path_exclude__").startswith(log_dir + "/*-"))
+                self.assertEqual(labels.pop("job"), constants.METRICS_JOB.node)
+                # Logs and metrics of a node carry the same labels.
+                if node in bootstrap:
+                    self.assertEqual(labels, {"node": node, "role": "bootstrap", "l1": "l1-0"})
+                else:
+                    self.assertEqual(labels, metrics[node])
+
+    def test_the_log_pipeline_skips_rotated_files_only(self):
+        import fnmatch
+        plan, _ = self.run_package({})
+        labels = plan.rendered("alloy-targets")["logs.json"][0]["labels"]
+        directory = "/logs/primary-0/"
+        blockchain_id = "2LFmzhHDKxkreihEtPanVmofuFn63bsh8twnRXEbDhBtCJxURB"
+        for name, read in (
+            ("main.log", True), ("P.log", True), ("vm-factory.log", True), (blockchain_id + ".log", True),
+            ("main-2026-11-19T10-00-00.000.log", False), (blockchain_id + "-2026-11-19T10-00-00.000.log", False),
+        ):
+            with self.subTest(file=name):
+                self.assertTrue(fnmatch.fnmatchcase(directory + name, labels["__path__"]))
+                self.assertEqual(not fnmatch.fnmatchcase(directory + name, labels["__path_exclude__"]), read)
+
+    def test_the_scrape_timeout_is_below_the_interval(self):
+        # Alloy does not start otherwise, and `alloy validate` does not see it.
+        pipeline = (starlark.ROOT / "static_files/observability/alloy/metrics.alloy").read_text()
+        scrapes = pipeline.count("prometheus.scrape ")
+        self.assertEqual(scrapes, 3)
+        self.assertEqual(re.findall(r'scrape_interval += "(.+)"', pipeline), ["5s"] * scrapes)
+        self.assertEqual(re.findall(r'scrape_timeout += "(.+)"', pipeline), ["4s"] * scrapes)
 
 
 if __name__ == "__main__":

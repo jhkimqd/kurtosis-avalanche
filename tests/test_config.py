@@ -23,7 +23,7 @@ class DefaultsTest(unittest.TestCase):
         self.assertEqual(args["l1"]["validator_management"], "native-pos")
         self.assertEqual(args["l1"]["validator_count"], 5)
         self.assertEqual(args["images"], constants.IMAGES)
-        self.assertTrue(args["bridge"] and args["metrics"])
+        self.assertTrue(args["bridge"] and args["metrics"] and args["logs"] and args["dashboards"])
 
     def test_a_key_without_a_value_keeps_its_default(self):
         # YAML parses a key that holds only comments as None.
@@ -92,6 +92,11 @@ class ValidationTest(unittest.TestCase):
             {"l1": {"validator_management": "pos"}},
             {"bridge": "yes"},
             {"metrics": 1},
+            {"logs": "all"},
+            {"dashboards": 0},
+            {"dashboards": "grafana"},
+            # Grafana would have nothing to show: `dashboards` defaults to true.
+            {"metrics": False, "logs": False},
             {"images": {"avalanchego": ""}},
             {"images": {"subnet_evm": []}},
             {"images": {"tools": 1}},
@@ -102,6 +107,10 @@ class ValidationTest(unittest.TestCase):
                 parse({"l1": {"validator_management": mode}})["l1"]["validator_management"],
                 mode,
             )
+        # One store is enough for Grafana, and no store needs no Grafana.
+        for args in ({"metrics": False}, {"logs": False}, {"dashboards": False},
+                     {"metrics": False, "logs": False, "dashboards": False}):
+            parse(args)
         # An empty tools image selects the local build.
         self.assertEqual(parse({"images": {"tools": ""}})["images"]["tools"], "")
 

@@ -29,3 +29,5 @@ jobs:
       - run: bash scripts/check-contracts.sh
       # Lint, then plan every file in examples/ and .github/configs/.
       - run: bash scripts/check-package.sh
+      # `alloy validate` misses some load errors, so this starts Alloy.
+      - run: bash scripts/check-alloy.sh

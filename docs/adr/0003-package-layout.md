@@ -1,6 +1,6 @@
 # 0003. Lay out the package like kurtosis-pos and kurtosis-cdk
 
-Status: Accepted
+Status: Accepted. ADR 0013 changes the order of the steps in `main.star`.
 
 ## Context
 

@@ -16,7 +16,6 @@ def launch(plan, args, network):
 
     Returns:
         struct with
-        nodes: context of each validator.
         bootstrap_peer: struct(node_id, ip_address) that later nodes sync from.
         rpc_url: base URL of the first validator; the API paths below extend it.
         p_chain_rpc_url, x_chain_rpc_url, c_chain_rpc_url: chain API endpoints.
@@ -64,7 +63,6 @@ def launch(plan, args, network):
 
     rpc_url = nodes[0].rpc_url
     return struct(
-        nodes=nodes,
         bootstrap_peer=bootstrap_peer,
         rpc_url=rpc_url,
         p_chain_rpc_url=rpc_url + "/ext/bc/P",
@@ -76,3 +74,17 @@ def launch(plan, args, network):
 def generate_name(index):
     """Returns the service name of a Primary Network validator."""
     return "primary-{}".format(index)
+
+
+def planned_nodes(args):
+    """Returns the validators that `launch` will start, before any exists.
+
+    The observability stack starts first and needs their names.
+
+    Returns:
+        A list of struct(name, role).
+    """
+    return [
+        struct(name=generate_name(index), role=constants.NODE_ROLE.primary)
+        for index in range(args["primary_network"]["validator_count"])
+    ]
