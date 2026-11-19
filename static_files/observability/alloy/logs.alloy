@@ -81,7 +81,7 @@ loki.process "avalanchego" {
 	stage.timestamp {
 		source            = "time"
 		format            = "01-02|15:04:05.000"
-		fallback_formats  = ["2006-01-02T15:04:05.000Z0700"]
+		fallback_formats  = ["2006-01-02T15:04:05.000Z0700", "RFC3339Nano"]
 		location          = "UTC"
 		action_on_failure = "fudge"
 	}
