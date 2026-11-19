@@ -136,6 +136,25 @@ class RepositoryDocsTest(unittest.TestCase):
             with self.subTest(component=component):
                 self.assertIn("| {} | {} |".format(component, version), readme)
 
+    def test_pos_example_names_the_pinned_image_versions(self):
+        # The `images` comment of the example shows each image with its tag.
+        constants_text = (ROOT / "src/config/constants.star").read_text()
+        example = (ROOT / "examples/pos.yml").read_text()
+        for component, image in (
+            ("Signature aggregator", "avaplatform/signature-aggregator:{}"),
+            ("ICM relayer", "avaplatform/icm-relayer:{}"),
+            ("Alloy", "grafana/alloy:{}"),
+            ("Prometheus", "prom/prometheus:{}"),
+            # These two images have tags without the `v`.
+            ("Grafana", "grafana/grafana:{}"),
+            ("Loki", "grafana/loki:{}"),
+        ):
+            version = re.search(r"# {} (v[\d.]+)\.".format(component), constants_text)[1]
+            if component in ("Grafana", "Loki"):
+                version = version.removeprefix("v")
+            with self.subTest(component=component):
+                self.assertIn("#   {}: {}".format(component.lower().replace(" ", "_"), image.format(version)), example)
+
 
 if __name__ == "__main__":
     unittest.main()

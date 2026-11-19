@@ -93,11 +93,10 @@ class ValidationTest(unittest.TestCase):
             {"bridge": "yes"},
             {"metrics": 1},
             {"logs": "all"},
-            {"dashboards": None, "metrics": "no"},
+            {"dashboards": 0},
             {"dashboards": "grafana"},
-            # Grafana would have nothing to show.
+            # Grafana would have nothing to show: `dashboards` defaults to true.
             {"metrics": False, "logs": False},
-            {"metrics": False, "logs": False, "dashboards": True},
             {"images": {"avalanchego": ""}},
             {"images": {"subnet_evm": []}},
             {"images": {"tools": 1}},
