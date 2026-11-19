@@ -2,7 +2,7 @@
 
 A [Kurtosis](https://docs.kurtosis.com/) package for local Avalanche devnets. It starts a **Primary Network** (P-, X-, and C-Chain) and one or more **Avalanche L1s**: Subnet-EVM blockchains with their own validators.
 
-The package registers each L1 and its validators, supports Proof of Authority and Proof of Stake, and can add a token bridge and Prometheus metrics.
+The package registers each L1 and its validators, supports Proof of Authority and Proof of Stake, and can add a token bridge and metrics collection.
 
 > For local development and testing only. Funded accounts use public private keys. Never use these keys for real funds.
 
@@ -44,8 +44,9 @@ flowchart TB
         subgraph support["Support services"]
             direction LR
             T["tools<br/>Setup and checks"]
-            M["prometheus<br/>Metrics"]
-            T ~~~ M
+            C["alloy<br/>Collector"]
+            M["prometheus<br/>Metrics store"]
+            T ~~~ C ~~~ M
         end
         primary ---|"registered on P-Chain"| l1
         l1 ~~~ support
@@ -66,6 +67,7 @@ The first run downloads images and builds the tools image from source. Default i
 | AvalancheGo with Subnet-EVM, for the L1 nodes | v1.15.0 |
 | Signature aggregator | v0.6.0 |
 | ICM relayer | v1.8.2 |
+| Alloy | v1.22.0 |
 | Prometheus | v3.2.1 |
 
 ## Quick start
@@ -103,7 +105,7 @@ Pass your YAML file with `--args-file`. Without one, the package uses the defaul
 | `l1.validator_count`, `l1.rpc_count` | Validators and non-validating RPC nodes per L1. |
 | `l1.chain_id` | EVM chain ID of the first L1; each subsequent L1 increments it by one. |
 | `bridge` | Deploy a token bridge between the C-Chain and each L1. |
-| `metrics` | Run Prometheus. |
+| `metrics` | Collect metrics: Alloy scrapes every node, relayer, and signature aggregator; Prometheus stores the samples. |
 | `images` | Override service images. |
 
 The remaining arguments configure AvalancheGo and Subnet-EVM. The reference files explain each option and its default:

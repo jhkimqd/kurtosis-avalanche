@@ -1,0 +1,49 @@
+# 0013. Collect metrics and logs with Alloy, and show them in Grafana
+
+Status: Accepted
+
+## Context
+
+The package ran one Prometheus that scraped the nodes. It had no log store and no dashboard, and nothing scraped the ICM relayer or the signature aggregator. Production networks use Grafana Alloy as the collector, with Prometheus-compatible and Loki stores behind Grafana.
+
+Kurtosis 1.18.2 limits the design. A service cannot mount the Docker socket, so a collector cannot read the output of another container. Two services that name the same persistent directory key do get the same Docker volume: the volume name is the key and the enclave ID. The Kurtosis documentation says that a persistent directory cannot be shared, so this behaviour is not a documented contract.
+
+## Decision
+
+Add an optional stack of four services, each with a launcher in `src/observability/`:
+
+- **Alloy** collects. It scrapes every node, relayer, and signature aggregator, and sends the samples to Prometheus. It reads the log files of every node and sends the lines to Loki.
+- **Prometheus** stores metrics. It scrapes nothing itself.
+- **Loki** stores logs.
+- **Grafana** shows both, with provisioned datasources and dashboards.
+
+Three boolean arguments switch the stack: `metrics` (Alloy and Prometheus), `logs` (Alloy and Loki), and `dashboards` (Grafana). All default to true.
+
+Start the stack before the Primary Network. Each network launcher has a function that returns the services it will start, and uses the same function for the names it starts. Alloy reads its targets from files in the Prometheus `file_sd` format; a target counts as down until its service exists.
+
+Keep the Alloy pipelines as static files in `static_files/observability/alloy/`. Starlark renders only the target files. `scripts/check-alloy.sh` loads the pipelines in the pinned Alloy.
+
+Nodes write their log files to one shared persistent directory, one subdirectory per node, and Alloy mounts the same directory. `log-dir` becomes a managed flag (extends ADR 0006).
+
+Give metrics and logs the same labels: `node`, `role`, and `l1`.
+
+Size the memory limit of Alloy and of Prometheus from the node count.
+
+## Consequences
+
+- `main.star` runs tools, observability, Primary Network, L1s, manifest. This extends the order in ADR 0003.
+- The dashboards show the deployment itself, and a failed deployment leaves the stack running.
+- Log collection depends on undocumented Kurtosis behaviour and works on the Docker backend only. A Kurtosis release can end it; the live check then fails.
+- The relayer and the signature aggregator write logs only to their output. Their logs are not collected; their metrics are.
+- Grafana accepts anonymous users as editors. Kurtosis publishes its port on every host interface, like the RPC ports of the nodes. The devnet has no secret to protect (ADR 0002), but do not run it on an untrusted network.
+- Alloy and Grafana send no usage reports, so the devnet stays offline.
+- Every run pulls three more images. The version watch covers Alloy, Loki, and Grafana (extends ADR 0011).
+- A contributor who renames a service must keep the planning function of its launcher in step. A unit test compares the planned and the started services.
+
+## Alternatives
+
+- Mount the Docker socket in Alloy: needs Kurtosis 1.18.3 or later and a privileged run.
+- Add a Loki sink to the Kurtosis log aggregator: the user must configure the engine, outside the package.
+- Import `grafana-package` and `prometheus-package`: the first has no Loki datasource, the second cannot enable the remote-write receiver.
+- Let Prometheus scrape and use Alloy for logs only: metrics and logs would be labelled in two places.
+- Start the stack last: a failed deployment would have no dashboard, and an idle chain would show flat graphs.

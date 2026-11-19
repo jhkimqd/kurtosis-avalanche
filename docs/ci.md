@@ -2,7 +2,7 @@
 
 Pushes and pull requests run two workflows on GitHub-hosted Ubuntu runners:
 
-- **package checks** runs the Python and Go tests, checks contract artifacts, lints Starlark, and plans every arguments file.
+- **package checks** runs the Python and Go tests, checks contract artifacts, lints Starlark, plans every arguments file, and loads the Alloy pipelines in the pinned Alloy.
 - **functionality tests** deploys the PoA, native-token PoS, ERC-20 PoS, and two-L1 networks. It also runs nightly at 03:17 UTC and on manual dispatch.
 
 Each functionality job deploys a fresh enclave, then runs `scripts/check-devnet.sh`. The checks read the deployment manifest to discover the configured validators and L1s. They verify validator registration, contract ownership, transfers, contract deployment and calls, block production, and agreement between L1 nodes. The package itself also tests bridge transfers when the bridge is enabled.
@@ -30,7 +30,7 @@ kurtosis enclave rm -f "$enclave"
 
 ## Version watch
 
-The **version watch** workflow runs daily at 06:43 UTC, on manual dispatch, and when its inputs change. It compares the recorded versions of both node images, the signature aggregator, ICM relayer, Prometheus, Kurtosis CLI, and Foundry with stable GitHub releases. ICM component releases are checked separately, excluding prerelease and network-specific tags.
+The **version watch** workflow runs daily at 06:43 UTC, on manual dispatch, and when its inputs change. It compares the recorded versions of both node images, the signature aggregator, ICM relayer, Alloy, Prometheus, Kurtosis CLI, and Foundry with stable GitHub releases. ICM component releases are checked separately, excluding prerelease and network-specific tags.
 
 GitHub runs [scheduled workflows from the default branch](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule). Merge the workflows there to activate their daily schedules.
 

@@ -52,7 +52,8 @@ DEFAULT_ARGS = {
     "node_config": {},
     # Deploy an ICM token bridge between the C-Chain and each L1, with a relayer.
     "bridge": True,
-    # Run Prometheus and scrape every node.
+    # Collect the metrics of every node and support service: Alloy scrapes
+    # them, and Prometheus stores them.
     "metrics": True,
     # Container images: see `constants.IMAGES`.
     "images": constants.IMAGES,

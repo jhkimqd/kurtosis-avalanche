@@ -93,7 +93,7 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
             plan,
             args,
             network,
-            name="{}-{}-{}".format(name, role, number),
+            name=node_name(name, role, number),
             role=role,
             index=index,
             bootstrap_peer=primary.bootstrap_peer,
@@ -234,6 +234,60 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
 def generate_name(l1_index):
     """Returns the name of an L1, which also starts the names of its services."""
     return "l1-{}".format(l1_index)
+
+
+def node_name(l1_name, role, number):
+    """Returns the service name of one node of an L1."""
+    return "{}-{}-{}".format(l1_name, role, number)
+
+
+def planned(args, l1_index):
+    """Returns the services that `launch` will start, before any exists.
+
+    The observability stack starts first and needs their names.
+
+    Returns:
+        struct with
+        name: name of the L1.
+        nodes: the permanent validators and RPC nodes, each a struct(name, role).
+        bootstrap_nodes: the temporary validators of a PoS L1, in the same form.
+        metrics_targets: the support services that serve metrics, each a
+            struct(job, address) with a job of `constants.METRICS_JOB`.
+    """
+    l1_args = args["l1"]
+    name = generate_name(l1_index)
+    validator_count = l1_args["validator_count"]
+
+    def nodes(role, count):
+        return [
+            struct(name=node_name(name, role, number), role=role)
+            for number in range(count)
+        ]
+
+    is_pos = l1_args["validator_management"] != constants.VALIDATOR_MANAGEMENT.poa
+    metrics_targets = [
+        struct(
+            job=constants.METRICS_JOB.signature_aggregator,
+            address=signature_aggregator.metrics_address(name),
+        )
+    ]
+    if args["bridge"]:
+        metrics_targets.append(
+            struct(
+                job=constants.METRICS_JOB.icm_relayer,
+                address=bridge.metrics_address(name),
+            )
+        )
+    return struct(
+        name=name,
+        nodes=nodes(constants.NODE_ROLE.validator, validator_count)
+        + nodes(constants.NODE_ROLE.rpc, l1_args["rpc_count"]),
+        bootstrap_nodes=nodes(
+            constants.NODE_ROLE.bootstrap,
+            bootstrap_validator_count(validator_count) if is_pos else 0,
+        ),
+        metrics_targets=metrics_targets,
+    )
 
 
 def node_count(l1_args):

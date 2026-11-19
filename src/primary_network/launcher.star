@@ -76,3 +76,17 @@ def launch(plan, args, network):
 def generate_name(index):
     """Returns the service name of a Primary Network validator."""
     return "primary-{}".format(index)
+
+
+def planned_nodes(args):
+    """Returns the validators that `launch` will start, before any exists.
+
+    The observability stack starts first and needs their names.
+
+    Returns:
+        A list of struct(name, role).
+    """
+    return [
+        struct(name=generate_name(index), role=constants.NODE_ROLE.primary)
+        for index in range(args["primary_network"]["validator_count"])
+    ]

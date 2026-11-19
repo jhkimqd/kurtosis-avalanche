@@ -37,7 +37,9 @@ IMAGES = {
     "signature_aggregator": "avaplatform/signature-aggregator@sha256:9c7d0f61f01e04c0addaa727e55c53298adb4edd4984287c68ed4b547645464a",
     # ICM relayer v1.8.2. Delivers bridge messages between the C-Chain and an L1.
     "icm_relayer": "avaplatform/icm-relayer@sha256:57bb6048b78bb7728788ced10f7f4e9c7dce42303858f3bdbd78f5d810c5dc05",
-    # Prometheus v3.2.1.
+    # Alloy v1.22.0. Scrapes the metrics of every service and sends them to Prometheus.
+    "alloy": "grafana/alloy@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189",
+    # Prometheus v3.2.1. Stores the metrics.
     "prometheus": "prom/prometheus@sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62",
     # Go tools. Empty builds the image from ./tools.
     "tools": "",
@@ -53,10 +55,22 @@ NODE_STAKING_PORT_NUMBER = 9651
 SIGNATURE_AGGREGATOR_API_PORT_NUMBER = 8080
 SIGNATURE_AGGREGATOR_METRICS_PORT_NUMBER = 8081
 
-# Fixed by the relayer configuration that `lab bridge-deploy` writes.
+# Fixed by the relayer configuration that `lab bridge-deploy` writes
+# (tools/bridge.go).
 ICM_RELAYER_API_PORT_NUMBER = 9091
+ICM_RELAYER_METRICS_PORT_NUMBER = 9092
 
+ALLOY_PORT_NUMBER = 12345
 PROMETHEUS_PORT_NUMBER = 9090
+
+# ── Metrics ──────────────────────────────────────────────────────────────────
+
+# Value of the `job` label on the metrics of each kind of service.
+METRICS_JOB = struct(
+    node="avalanche",
+    icm_relayer="icm-relayer",
+    signature_aggregator="signature-aggregator",
+)
 
 # ── Resource limits ──────────────────────────────────────────────────────────
 
@@ -65,7 +79,12 @@ NODE_MAX_CPU = 1000
 NODE_MAX_MEMORY = 1536
 BOOTSTRAP_NODE_MAX_CPU = 500
 BOOTSTRAP_NODE_MAX_MEMORY = 512
-PROMETHEUS_MAX_MEMORY = 512
+# Alloy and Prometheus hold every metric series of every node, so their limit
+# grows with the network: a base amount plus an amount for each node.
+ALLOY_BASE_MEMORY = 384
+ALLOY_NODE_MEMORY = 48
+PROMETHEUS_BASE_MEMORY = 384
+PROMETHEUS_NODE_MEMORY = 32
 
 # ── L1 setup ─────────────────────────────────────────────────────────────────
 

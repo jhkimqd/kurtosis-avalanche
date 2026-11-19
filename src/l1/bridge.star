@@ -41,7 +41,7 @@ def launch(plan, args, l1_name, state_path, primary_rpc_url, l1_rpc_url):
         src=state_path + "/bridge/relayer",
     )
     plan.add_service(
-        name=l1_name + "-relayer",
+        name=generate_name(l1_name),
         config=ServiceConfig(
             image=args["images"]["icm_relayer"],
             ports={
@@ -49,7 +49,11 @@ def launch(plan, args, l1_name, state_path, primary_rpc_url, l1_rpc_url):
                     number=constants.ICM_RELAYER_API_PORT_NUMBER,
                     application_protocol="http",
                     wait="2m",
-                )
+                ),
+                "metrics": PortSpec(
+                    number=constants.ICM_RELAYER_METRICS_PORT_NUMBER,
+                    application_protocol="http",
+                ),
             },
             files={
                 "/config": relayer_config,
@@ -71,6 +75,18 @@ def launch(plan, args, l1_name, state_path, primary_rpc_url, l1_rpc_url):
         ["lab", "bridge-activate"] + chains,
     )
     return addresses
+
+
+def generate_name(l1_name):
+    """Returns the service name of the ICM relayer of an L1."""
+    return l1_name + "-relayer"
+
+
+def metrics_address(l1_name):
+    """Returns the host and port that serve the relayer's metrics."""
+    return "{}:{}".format(
+        generate_name(l1_name), constants.ICM_RELAYER_METRICS_PORT_NUMBER
+    )
 
 
 def verify(plan, l1_name, state_path, primary_rpc_url, l1_rpc_url):

@@ -1,0 +1,72 @@
+// Metrics pipeline of Grafana Alloy: scrape every target, send to Prometheus.
+//
+// src/observability/alloy.star mounts this file, renders the target files in
+// /etc/alloy-targets, and sets PROMETHEUS_REMOTE_WRITE_URL. Each target file
+// lists the services of one job with their labels (`node`, `role`, `l1`).
+//
+// The scrape timeout must stay below the interval: Alloy does not start
+// otherwise, and the default timeout is 10 seconds.
+
+// ── AvalancheGo nodes ────────────────────────────────────────────────────────
+
+discovery.file "avalanche" {
+	files = ["/etc/alloy-targets/avalanche.json"]
+}
+
+prometheus.scrape "avalanche" {
+	targets         = discovery.file.avalanche.targets
+	job_name        = "avalanche"
+	metrics_path    = "/ext/metrics"
+	scrape_interval = "5s"
+	scrape_timeout  = "4s"
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+// ── ICM relayers ─────────────────────────────────────────────────────────────
+
+discovery.file "icm_relayer" {
+	files = ["/etc/alloy-targets/icm-relayer.json"]
+}
+
+prometheus.scrape "icm_relayer" {
+	targets         = discovery.file.icm_relayer.targets
+	job_name        = "icm-relayer"
+	metrics_path    = "/metrics"
+	scrape_interval = "5s"
+	scrape_timeout  = "4s"
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+// ── Signature aggregators ────────────────────────────────────────────────────
+
+discovery.file "signature_aggregator" {
+	files = ["/etc/alloy-targets/signature-aggregator.json"]
+}
+
+// The aggregator names its metrics `signature-aggregator_...`. A hyphen is not
+// valid in a classic Prometheus metric name. With these two settings Alloy
+// asks for escaped names and stores `signature_aggregator_...`.
+prometheus.scrape "signature_aggregator" {
+	targets                       = discovery.file.signature_aggregator.targets
+	job_name                      = "signature-aggregator"
+	metrics_path                  = "/metrics"
+	scrape_interval               = "5s"
+	scrape_timeout                = "4s"
+	metric_name_validation_scheme = "legacy"
+	metric_name_escaping_scheme   = "underscores"
+	forward_to                    = [prometheus.remote_write.prometheus.receiver]
+}
+
+// ── Storage ──────────────────────────────────────────────────────────────────
+
+prometheus.remote_write "prometheus" {
+	endpoint {
+		url = sys.env("PROMETHEUS_REMOTE_WRITE_URL")
+	}
+
+	// Alloy keeps unsent samples in a write-ahead log in its container. Trim
+	// it often; the default is every two hours.
+	wal {
+		truncate_frequency = "15m"
+	}
+}

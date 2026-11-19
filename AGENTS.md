@@ -23,6 +23,7 @@ kurtosis lint --format . && kurtosis lint .   # format and lint the Starlark (bl
 kurtosis lint -c .                            # check the docstrings
 python3 -m unittest discover -s tests         # unit tests (seconds)
 bash scripts/check-package.sh                 # lint, then plan every arguments file (starts no node)
+bash scripts/check-alloy.sh                   # load the Alloy pipelines in the pinned Alloy
 bash scripts/build.sh                         # build the tools image; the build runs the Go tests
 python3 scripts/gen-config-reference.py       # regenerate node.yml, l1-chain.yml, c-chain.yml
 bash scripts/run.sh examples/poa.yml          # live run in a new enclave
@@ -39,7 +40,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 
 | Path | Content |
 | --- | --- |
-| `main.star` | Entry point. Five steps: tools, Primary Network, L1s, metrics, manifest. |
+| `main.star` | Entry point. Five steps: tools, observability, Primary Network, L1s, manifest. |
 | `nightly.star` | Test entry point: deploy the network, then verify direct application messages between every pair of L1s. |
 | `src/config/constants.star` | Network IDs, enums, pinned images, ports, limits. |
 | `src/config/input_parser.star` | Every argument and its default; `parse()`. |
@@ -48,17 +49,17 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | `src/primary_network/launcher.star` | Primary Network validators. |
 | `src/l1/launcher.star` | L1 lifecycle (ACP-77) and PoS bootstrap sizing. |
 | `src/l1/signature_aggregator.star`, `src/l1/bridge.star` | Per-L1 support services. |
-| `src/metrics/launcher.star` | Prometheus. |
+| `src/observability/launcher.star` | The observability stack. One file per service: `alloy.star` (collector), `prometheus.star` (metrics store). |
 | `src/tools/launcher.star` | The tools service and the helpers that run `lab` in it. |
 | `tools/` | Go program `lab`: keys, genesis, transactions, checks. One file per concern; `main.go` lists the commands. |
-| `static_files/` | Base L1 genesis and the contract artifacts (`static_files/contracts/hashes.json` pins them). |
+| `static_files/` | Base L1 genesis, the contract artifacts (`static_files/contracts/hashes.json` pins them), and the Alloy pipelines (`static_files/observability/alloy/`). |
 | `contracts/` | Sources of the two test tokens, the nightly message receiver, and the reproducible artifact build. |
 | `examples/` | The two documented networks: `poa.yml`, `pos.yml`. |
 | `.github/configs/` | Arguments files for CI coverage only. |
 | `docs/config/` | Reference of the AvalancheGo options. |
 | `docs/l1-lifecycle.md` | How the package activates an L1, step by step, and how to check it. |
 | `docs/adr/` | Architecture decision records. |
-| `scripts/` | `run.sh` (deploy), `check-devnet.sh` (check a running devnet), `check-package.sh` (lint and plan), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`. |
+| `scripts/` | `run.sh` (deploy), `check-devnet.sh` (check a running devnet), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`. |
 | `tests/` | Python unit tests. `tests/starlark.py` loads the Starlark modules in Python. |
 
 ## Where to make a change
@@ -70,7 +71,9 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | Take control of an AvalancheGo flag | `src/node/launcher.star` → `MANAGED_NODE_FLAGS` in `sanity_check.star` → regenerate `docs/config/` |
 | Bump a node image | `IMAGES` in `constants.star` → the commit in `tools/Dockerfile` and the version in `tools/go.mod` → regenerate `docs/config/` and review its hand-written files → the version in `README.md`, `AGENTS.md`, and `examples/pos.yml` (a test compares them) → live run of both examples |
 | Add a `lab` command | `tools/<concern>.go` → the command list in `tools/main.go` → the caller in `src/` |
-| Add a service | `src/<name>/launcher.star` with `launch(plan, args, ...)` → `main.star` or `src/l1/launcher.star` → image in `IMAGES` |
+| Add a service | `src/<name>/launcher.star` with `launch(plan, args, ...)` → `main.star` or `src/l1/launcher.star` → image in `IMAGES` → the planning function of the launcher (`planned_nodes`, `planned`), if the service serves metrics |
+| Change what Alloy collects | `static_files/observability/alloy/` → the target files in `src/observability/alloy.star` → `bash scripts/check-alloy.sh` → live run |
+| Bump an observability image | `IMAGES` in `constants.star` (digest of the multi-platform index) → the version in `README.md` and `examples/pos.yml` → `bash scripts/check-alloy.sh` → live run of `examples/pos.yml` |
 | Change a contract artifact | `contracts/` → `bash scripts/check-contracts.sh refresh` → review the diff |
 | Add a CI-only network | `.github/configs/<name>.yml` → the matrix in `.github/workflows/integration.yml` |
 
@@ -88,7 +91,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | EWOQ private key | `0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027` (public; devnet only) |
 | ValidatorManager on every L1 | `0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25` |
 
-Service names: `primary-<n>`, `l1-<i>-validator-<n>`, `l1-<i>-rpc-<n>`, `l1-<i>-bootstrap-<n>` (temporary, PoS setup only), `l1-<i>-aggregator`, `l1-<i>-relayer`, `prometheus`, `tools`. All indexes start at 0.
+Service names: `primary-<n>`, `l1-<i>-validator-<n>`, `l1-<i>-rpc-<n>`, `l1-<i>-bootstrap-<n>` (temporary, PoS setup only), `l1-<i>-aggregator`, `l1-<i>-relayer`, `alloy`, `prometheus`, `tools`. All indexes start at 0.
 
 ## Starlark conventions
 
@@ -97,6 +100,7 @@ These follow kurtosis-pos (`src/config/`, launcher contract) and kurtosis-cdk (`
 - Name an import after its module: `constants`, `input_parser`, `node_launcher`, `l1_launcher`. The tools module is `tools`, because callers use its helpers (`tools.run`, `tools.read_json`).
 - A launcher exports `launch(plan, args, ...)`. It returns what its callers need: a `struct` context for a node or a network, a URL for the aggregator. Callers read that value; they do not rebuild a URL or a name.
 - Build a service name in one place: `generate_name()` or the launcher that owns the service.
+- The observability stack starts before the network and scrapes by name. A launcher whose services it observes exports a planning function (`planned_nodes`, `planned`) that returns those services from the arguments alone. Keep it equal to what `launch` starts; a test compares them.
 - Compare against `constants.VALIDATOR_MANAGEMENT.*` and `constants.NODE_ROLE.*`, never against a raw string.
 - Keep every image in `constants.IMAGES`, pinned by digest, with the version in a comment.
 - Keep every default in `input_parser.star`. A launcher does not call `.get(key, default)` on the arguments.
@@ -130,7 +134,7 @@ These follow kurtosis-pos (`src/config/`, launcher contract) and kurtosis-cdk (`
 1. `kurtosis lint .` reports nothing.
 2. `python3 -m unittest discover -s tests` passes with PyYAML installed.
 3. `bash scripts/check-package.sh` plans every arguments file.
-4. `bash scripts/build.sh` passes if `tools/` changed.
+4. `bash scripts/build.sh` passes if `tools/` changed. `bash scripts/check-alloy.sh` passes if `static_files/observability/alloy/` changed.
 5. `bash scripts/run.sh examples/poa.yml` passes if `src/` or `tools/` changed. Also run `examples/pos.yml` if the change touches staking, the bridge, or node config.
 6. Remove the enclaves that you started.
 

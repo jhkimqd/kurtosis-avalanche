@@ -3,7 +3,7 @@
 constants = import_module("./src/config/constants.star")
 input_parser = import_module("./src/config/input_parser.star")
 l1_launcher = import_module("./src/l1/launcher.star")
-metrics_launcher = import_module("./src/metrics/launcher.star")
+observability_launcher = import_module("./src/observability/launcher.star")
 primary_network_launcher = import_module("./src/primary_network/launcher.star")
 tools = import_module("./src/tools/launcher.star")
 
@@ -32,11 +32,22 @@ def run(plan, args={}):
         primary_validator_count=primary_validator_count,
     )
 
-    # 2. Start the Primary Network: the validators of the P-, X-, and C-Chain.
+    # 2. Start the observability stack. It runs before the network, so that it
+    #    records the whole deployment.
+    observability = observability_launcher.launch(
+        plan,
+        args,
+        primary_network_launcher.planned_nodes(args),
+        [
+            l1_launcher.planned(args, l1_index)
+            for l1_index in range(args["l1"]["count"])
+        ],
+    )
+
+    # 3. Start the Primary Network: the validators of the P-, X-, and C-Chain.
     primary = primary_network_launcher.launch(plan, args, network)
 
-    # 3. Create each L1 and attach it to the Primary Network.
-    nodes = list(primary.nodes)
+    # 4. Create each L1 and attach it to the Primary Network.
     l1_manifests = []
     for l1_index in range(args["l1"]["count"]):
         l1 = l1_launcher.launch(
@@ -47,12 +58,7 @@ def run(plan, args={}):
             l1_index,
             first_node_index=primary_validator_count + l1_index * l1_node_count,
         )
-        nodes.extend(l1.nodes)
         l1_manifests.append(l1.manifest)
-
-    # 4. Scrape the metrics of every node.
-    if args["metrics"]:
-        metrics_launcher.launch(plan, args, nodes)
 
     # 5. Publish the result: the manifest, and a snapshot of the tools state.
     manifest = {
@@ -65,6 +71,15 @@ def run(plan, args={}):
             "c_chain_id": constants.C_CHAIN_ID,
         },
         "l1s": l1_manifests,
+        # URL of each observability service that runs.
+        "observability": {
+            key: url
+            for key, url in [
+                ("prometheus_url", observability.prometheus_url),
+                ("alloy_url", observability.alloy_url),
+            ]
+            if url
+        },
         "args": args,
     }
     plan.render_templates(
