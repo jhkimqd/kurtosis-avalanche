@@ -33,6 +33,11 @@ def pins(root):
         ("Subnet-EVM image", "ava-labs/avalanchego", "", r"# AvalancheGo (v[\d.]+) with"),
         ("Signature aggregator", "ava-labs/icm-services", "signature-aggregator-", r"# Signature aggregator (v[\d.]+)\."),
         ("ICM relayer", "ava-labs/icm-services", "icm-relayer-", r"# ICM relayer (v[\d.]+)\."),
+        ("Alloy", "grafana/alloy", "", r"# Alloy (v[\d.]+)\."),
+        ("Grafana", "grafana/grafana", "", r"# Grafana (v[\d.]+)\."),
+        # The Loki repository also releases its operator and Helm chart. The
+        # prefix selects the releases of Loki itself.
+        ("Loki", "grafana/loki", "v", r"# Loki (v[\d.]+)\."),
         ("Prometheus", "prometheus/prometheus", "", r"# Prometheus (v[\d.]+)\."),
     ]
     result = []

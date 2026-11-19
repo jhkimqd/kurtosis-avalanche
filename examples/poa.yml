@@ -55,6 +55,9 @@ l1:
     #   "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC":
     #     balance: "0xd3c21bcecceda1000000"
 
-# No token bridge to the C-Chain, and no Prometheus.
+# No token bridge to the C-Chain, and no observability stack: no collection of
+# metrics or logs, and no Grafana.
 bridge: false
 metrics: false
+logs: false
+dashboards: false

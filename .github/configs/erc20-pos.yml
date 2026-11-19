@@ -2,3 +2,6 @@
 l1:
   validator_management: erc20-pos
   validator_count: 4
+
+# CI coverage: metrics without logs. The nodes then keep their log files.
+logs: false

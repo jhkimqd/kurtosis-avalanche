@@ -2,13 +2,15 @@
 #
 #   kurtosis run --enclave avalanche . --args-file examples/pos.yml
 #
-# It runs 9 nodes and 4 support services, and takes about 4 minutes:
+# It runs 9 nodes and 7 support services, and takes about 4 minutes:
 #
 #   primary-0 .. primary-2             Primary Network validators (P-, X-, C-Chain)
 #   l1-0-validator-0 .. -4             L1 validators, each with a stake
 #   l1-0-rpc-0                         L1 RPC node
 #   l1-0-aggregator, l1-0-relayer      Signature aggregator and ICM relayer
-#   prometheus                         Metrics
+#   alloy                              Collects metrics and logs
+#   prometheus, loki                   Store the metrics and the logs
+#   grafana                            Dashboards for both
 #   tools                              Signs the setup transactions
 #
 # During setup it also runs 4 temporary nodes, l1-0-bootstrap-0 .. -3, and
@@ -129,8 +131,25 @@ node_config: {}
 # the messages. The package bridges 7 CASH as a test.
 bridge: true
 
-# Prometheus, which scrapes the metrics of every node every 5 seconds.
+# Metrics. Grafana Alloy scrapes every node, relayer, and signature aggregator
+# every 5 seconds and sends the samples to Prometheus, which keeps 2 hours.
+# Both start before the network, so they record the deployment itself.
 metrics: true
+
+# Logs. Every node writes its log files to one shared volume. Alloy reads them
+# and sends the lines to Loki, which keeps 24 hours. The lines carry the labels
+# of the metrics (`node`, `role`, `l1`), the log file as `logger` (main, P, X,
+# C, or the blockchain ID of the L1), and the `level`. The relayer and the
+# signature aggregator write no log files, so their logs are not collected:
+# read them with `kurtosis service logs`. Docker backend only.
+logs: true
+
+# Grafana with a datasource and dashboards for the metrics and the logs: an
+# overview, one L1, the Primary Network, interchain messaging, and logs. It
+# needs `metrics` or `logs`. Open the address that this command prints:
+#   kurtosis port print <enclave> grafana http
+# No login is needed to look. docs/observability.md describes the dashboards.
+dashboards: true
 
 # ── Images ───────────────────────────────────────────────────────────────────
 # Container images. Each default is pinned by digest in
@@ -140,5 +159,8 @@ metrics: true
 #   subnet_evm: avaplatform/subnet-evm:v1.15.0     # L1 nodes (AvalancheGo + Subnet-EVM)
 #   signature_aggregator: avaplatform/signature-aggregator:v0.6.0
 #   icm_relayer: avaplatform/icm-relayer:v1.8.2
+#   alloy: grafana/alloy:v1.22.0
+#   grafana: grafana/grafana:13.3.1
+#   loki: grafana/loki:3.7.10
 #   prometheus: prom/prometheus:v3.2.1
 #   tools: avalanche-tools:local                   # Empty builds ./tools

@@ -16,6 +16,7 @@ An ADR records one decision that shapes this package: the situation, the choice,
 | [0010](0010-hosted-functionality-tests.md) | Run live functionality tests on hosted CI runners |
 | [0011](0011-report-upstream-releases.md) | Report upstream releases without changing pins |
 | [0012](0012-daily-nightly-icm-tests.md) | Run daily release reports and nightly application delivery tests |
+| [0013](0013-observability-stack.md) | Collect metrics and logs with Alloy, and show them in Grafana |
 
 ## Add an ADR
 

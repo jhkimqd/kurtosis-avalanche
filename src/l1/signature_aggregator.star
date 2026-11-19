@@ -10,7 +10,7 @@ constants = import_module("../config/constants.star")
 
 def launch(plan, args, l1_name, subnet_id, primary_rpc_url):
     """Starts the signature aggregator of one L1 and returns its API URL."""
-    name = l1_name + "-aggregator"
+    name = generate_name(l1_name)
     config = plan.render_templates(
         name=name + "-config",
         config={
@@ -41,7 +41,11 @@ def launch(plan, args, l1_name, subnet_id, primary_rpc_url):
                     number=constants.SIGNATURE_AGGREGATOR_API_PORT_NUMBER,
                     application_protocol="http",
                     wait="2m",
-                )
+                ),
+                "metrics": PortSpec(
+                    number=constants.SIGNATURE_AGGREGATOR_METRICS_PORT_NUMBER,
+                    application_protocol="http",
+                ),
             },
             files={"/config": config},
             entrypoint=["/usr/bin/signature-aggregator"],
@@ -49,3 +53,15 @@ def launch(plan, args, l1_name, subnet_id, primary_rpc_url):
         ),
     )
     return "http://{}:{}".format(name, constants.SIGNATURE_AGGREGATOR_API_PORT_NUMBER)
+
+
+def generate_name(l1_name):
+    """Returns the service name of the signature aggregator of an L1."""
+    return l1_name + "-aggregator"
+
+
+def metrics_address(l1_name):
+    """Returns the host and port that serve the aggregator's metrics."""
+    return "{}:{}".format(
+        generate_name(l1_name), constants.SIGNATURE_AGGREGATOR_METRICS_PORT_NUMBER
+    )

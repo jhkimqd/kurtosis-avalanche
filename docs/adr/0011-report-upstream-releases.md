@@ -1,6 +1,6 @@
 # 0011. Report upstream releases without changing pins
 
-Status: Accepted
+Status: Accepted. ADR 0013 adds Alloy, Grafana, and Loki to the watched components.
 
 ## Context
 
