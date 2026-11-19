@@ -42,6 +42,15 @@ jobs:
         with:
           persist-credentials: false
       - run: mkdir -p artifacts
+      # A devnet fills the disk of a runner: the node images, the tools
+      # build, one database per node, and the enclave dump. A runner that
+      # starts with little free space ends with "No space left on device".
+      # Remove preinstalled toolchains that this job does not use.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
       - uses: ./.github/actions/setup-kurtosis
       - run: bash scripts/build.sh
       # Use the system Python that owns the apt-installed PyYAML package.
@@ -63,6 +72,8 @@ jobs:
       - name: Capture service logs before cleanup
         if: always()
         run: |
+          # The free space after the deployment, to judge a failure.
+          df -h / | tee artifacts/disk.txt
           if kurtosis enclave inspect "$ENCLAVE" > artifacts/enclave.txt 2>&1; then
             kurtosis enclave dump "$ENCLAVE" artifacts/enclave-dump
           fi
