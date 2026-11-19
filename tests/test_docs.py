@@ -131,7 +131,7 @@ class RepositoryDocsTest(unittest.TestCase):
     def test_readme_names_the_pinned_versions(self):
         constants_text = (ROOT / "src/config/constants.star").read_text()
         readme = (ROOT / "README.md").read_text()
-        for component in ("Signature aggregator", "ICM relayer", "Alloy", "Prometheus"):
+        for component in ("Signature aggregator", "ICM relayer", "Alloy", "Loki", "Prometheus"):
             version = re.search(r"# {} (v[\d.]+)\.".format(component), constants_text)[1]
             with self.subTest(component=component):
                 self.assertIn("| {} | {} |".format(component, version), readme)

@@ -23,7 +23,7 @@ class DefaultsTest(unittest.TestCase):
         self.assertEqual(args["l1"]["validator_management"], "native-pos")
         self.assertEqual(args["l1"]["validator_count"], 5)
         self.assertEqual(args["images"], constants.IMAGES)
-        self.assertTrue(args["bridge"] and args["metrics"])
+        self.assertTrue(args["bridge"] and args["metrics"] and args["logs"])
 
     def test_a_key_without_a_value_keeps_its_default(self):
         # YAML parses a key that holds only comments as None.
@@ -92,6 +92,7 @@ class ValidationTest(unittest.TestCase):
             {"l1": {"validator_management": "pos"}},
             {"bridge": "yes"},
             {"metrics": 1},
+            {"logs": "all"},
             {"images": {"avalanchego": ""}},
             {"images": {"subnet_evm": []}},
             {"images": {"tools": 1}},

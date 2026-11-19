@@ -55,6 +55,9 @@ DEFAULT_ARGS = {
     # Collect the metrics of every node and support service: Alloy scrapes
     # them, and Prometheus stores them.
     "metrics": True,
+    # Collect the logs of every node: Alloy reads the log files, and Loki
+    # stores the lines.
+    "logs": True,
     # Container images: see `constants.IMAGES`.
     "images": constants.IMAGES,
 }

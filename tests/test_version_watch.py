@@ -62,7 +62,7 @@ class ReleaseTest(unittest.TestCase):
 
     def test_current_versions_come_from_repository_files(self):
         pins = watch.pins(ROOT)
-        self.assertEqual(len(pins), 8)
+        self.assertEqual(len(pins), 9)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("src/config/constants.star", ".github/actions/setup-kurtosis/action.yml", "contracts/Dockerfile"):

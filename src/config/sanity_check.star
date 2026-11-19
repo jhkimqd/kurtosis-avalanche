@@ -3,8 +3,8 @@
 constants = import_module("./constants.star")
 
 # AvalancheGo flags that the package sets for every node: identities, paths,
-# ports, and peer wiring. An override would break the Kurtosis port mapping or
-# peer discovery, so the package rejects it.
+# ports, and peer wiring. An override would break the Kurtosis port mapping,
+# peer discovery, or log collection, so the package rejects it.
 MANAGED_NODE_FLAGS = [
     "bootstrap-ids",
     "bootstrap-ips",
@@ -17,6 +17,7 @@ MANAGED_NODE_FLAGS = [
     "genesis-file-content",
     "http-host",
     "http-port",
+    "log-dir",
     "network-id",
     "partial-sync-primary-network",
     "plugin-dir",
@@ -124,7 +125,7 @@ def check(args):
     if l1["validator_management"] not in modes:
         fail("l1.validator_management must be one of {}".format(modes))
 
-    for key in ["bridge", "metrics"]:
+    for key in ["bridge", "metrics", "logs"]:
         if type(args[key]) != "bool":
             fail("{} must be a boolean".format(key))
 

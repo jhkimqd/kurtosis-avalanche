@@ -76,6 +76,7 @@ def run(plan, args={}):
             key: url
             for key, url in [
                 ("prometheus_url", observability.prometheus_url),
+                ("loki_url", observability.loki_url),
                 ("alloy_url", observability.alloy_url),
             ]
             if url

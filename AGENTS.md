@@ -49,7 +49,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | `src/primary_network/launcher.star` | Primary Network validators. |
 | `src/l1/launcher.star` | L1 lifecycle (ACP-77) and PoS bootstrap sizing. |
 | `src/l1/signature_aggregator.star`, `src/l1/bridge.star` | Per-L1 support services. |
-| `src/observability/launcher.star` | The observability stack. One file per service: `alloy.star` (collector), `prometheus.star` (metrics store). |
+| `src/observability/launcher.star` | The observability stack. One file per service: `alloy.star` (collector), `prometheus.star` (metrics store), `loki.star` (log store). |
 | `src/tools/launcher.star` | The tools service and the helpers that run `lab` in it. |
 | `tools/` | Go program `lab`: keys, genesis, transactions, checks. One file per concern; `main.go` lists the commands. |
 | `static_files/` | Base L1 genesis, the contract artifacts (`static_files/contracts/hashes.json` pins them), and the Alloy pipelines (`static_files/observability/alloy/`). |
@@ -91,7 +91,9 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | EWOQ private key | `0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027` (public; devnet only) |
 | ValidatorManager on every L1 | `0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25` |
 
-Service names: `primary-<n>`, `l1-<i>-validator-<n>`, `l1-<i>-rpc-<n>`, `l1-<i>-bootstrap-<n>` (temporary, PoS setup only), `l1-<i>-aggregator`, `l1-<i>-relayer`, `alloy`, `prometheus`, `tools`. All indexes start at 0.
+Service names: `primary-<n>`, `l1-<i>-validator-<n>`, `l1-<i>-rpc-<n>`, `l1-<i>-bootstrap-<n>` (temporary, PoS setup only), `l1-<i>-aggregator`, `l1-<i>-relayer`, `alloy`, `prometheus`, `loki`, `tools`. All indexes start at 0.
+
+Labels on every metric and log line of a node: `job` (`avalanche`), `node` (the service name), `role`, and `l1` (L1 nodes only). Logs add `logger` (the log file: `main`, `P`, `X`, `C`, or a blockchain ID) and `level`.
 
 ## Starlark conventions
 

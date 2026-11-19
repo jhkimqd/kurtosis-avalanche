@@ -37,8 +37,10 @@ IMAGES = {
     "signature_aggregator": "avaplatform/signature-aggregator@sha256:9c7d0f61f01e04c0addaa727e55c53298adb4edd4984287c68ed4b547645464a",
     # ICM relayer v1.8.2. Delivers bridge messages between the C-Chain and an L1.
     "icm_relayer": "avaplatform/icm-relayer@sha256:57bb6048b78bb7728788ced10f7f4e9c7dce42303858f3bdbd78f5d810c5dc05",
-    # Alloy v1.22.0. Scrapes the metrics of every service and sends them to Prometheus.
+    # Alloy v1.22.0. Collects the metrics and logs and sends them to the stores.
     "alloy": "grafana/alloy@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189",
+    # Loki v3.7.10. Stores the logs.
+    "loki": "grafana/loki@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7",
     # Prometheus v3.2.1. Stores the metrics.
     "prometheus": "prom/prometheus@sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62",
     # Go tools. Empty builds the image from ./tools.
@@ -61,16 +63,23 @@ ICM_RELAYER_API_PORT_NUMBER = 9091
 ICM_RELAYER_METRICS_PORT_NUMBER = 9092
 
 ALLOY_PORT_NUMBER = 12345
+LOKI_PORT_NUMBER = 3100
 PROMETHEUS_PORT_NUMBER = 9090
 
-# ── Metrics ──────────────────────────────────────────────────────────────────
+# ── Metrics and logs ─────────────────────────────────────────────────────────
 
-# Value of the `job` label on the metrics of each kind of service.
+# Value of the `job` label on the metrics of each kind of service. The logs of
+# a node carry the same `job` as its metrics.
 METRICS_JOB = struct(
     node="avalanche",
     icm_relayer="icm-relayer",
     signature_aggregator="signature-aggregator",
 )
+
+# Key of the persistent directory that holds the log files of every node.
+# Kurtosis gives every service that names this key the same volume: each node
+# writes to it, and Alloy reads from it.
+NODE_LOGS_VOLUME_KEY = "node-logs"
 
 # ── Resource limits ──────────────────────────────────────────────────────────
 
@@ -85,6 +94,7 @@ ALLOY_BASE_MEMORY = 384
 ALLOY_NODE_MEMORY = 48
 PROMETHEUS_BASE_MEMORY = 384
 PROMETHEUS_NODE_MEMORY = 32
+LOKI_MAX_MEMORY = 512
 
 # ── L1 setup ─────────────────────────────────────────────────────────────────
 

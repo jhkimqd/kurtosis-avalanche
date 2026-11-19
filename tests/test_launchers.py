@@ -53,6 +53,16 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(service.files["/network"], "network")
         self.assertEqual(service.max_memory, constants.NODE_MAX_MEMORY)
         self.assertEqual(node.rpc_url, "http://primary-0:9650")
+        # The node writes its log files to the volume that Alloy reads.
+        self.assertEqual(flags["log-dir"], "/logs/primary-0")
+        self.assertEqual(flags["log-dir"], node_launcher.log_dir("primary-0"))
+        self.assertEqual(service.files["/logs"].persistent_key, constants.NODE_LOGS_VOLUME_KEY)
+
+    def test_without_log_collection_the_logs_stay_with_the_node(self):
+        plan, node, service, files = self.launch({"logs": False}, name="primary-0", role="primary", index=0)
+        # The default of AvalancheGo: <data-dir>/logs.
+        self.assertEqual(files["node.json"]["log-dir"], "/data/logs")
+        self.assertNotIn("/logs", service.files)
 
     def test_l1_node(self):
         args = {
@@ -82,14 +92,21 @@ class NodeTest(unittest.TestCase):
 
     def test_managed_flags_win_and_are_all_rejected_as_overrides(self):
         sanity_check = starlark.load("src/config/sanity_check.star")
+        for role, name in (("bootstrap", "l1-0-bootstrap-0"), ("validator", "l1-0-validator-0"), ("primary", "primary-1")):
+            with self.subTest(role=role):
+                plan, node, service, files = self.launch(
+                    {}, name=name, role=role, index=3, bootstrap_peer=BOOTSTRAP, l1=None if role == "primary" else L1
+                )
+                package_flags = set(files["node.json"]) - set(input_parser.DEFAULT_NODE_CONFIG)
+                self.assertLessEqual(package_flags, set(sanity_check.MANAGED_NODE_FLAGS))
         plan, node, service, files = self.launch(
             {}, name="l1-0-bootstrap-0", role="bootstrap", index=3, bootstrap_peer=BOOTSTRAP, l1=L1
         )
-        package_flags = set(files["node.json"]) - set(input_parser.DEFAULT_NODE_CONFIG)
-        self.assertLessEqual(package_flags, set(sanity_check.MANAGED_NODE_FLAGS))
         self.assertEqual(service.max_memory, constants.BOOTSTRAP_NODE_MAX_MEMORY)
-        # A temporary node leaves no volume behind.
+        # A temporary node leaves no data volume behind. Its log files stay in
+        # the shared volume, so that its part of the setup can be read later.
         self.assertNotIn("/data", service.files)
+        self.assertEqual(service.files["/logs"].persistent_key, constants.NODE_LOGS_VOLUME_KEY)
 
 
 class BootstrapSizingTest(unittest.TestCase):
@@ -145,6 +162,7 @@ class DeploymentTest(unittest.TestCase):
             },
             "bridge": False,
             "metrics": False,
+            "logs": False,
         }
         plan, manifest, commands = self.run_package(args)
         self.assertEqual(
@@ -184,7 +202,7 @@ class DeploymentTest(unittest.TestCase):
         validators = ["l1-0-validator-{}".format(i) for i in range(5)]
         self.assertEqual(
             services,
-            ["tools", "prometheus", "alloy", "primary-0", "primary-1", "primary-2"] + bootstrap
+            ["tools", "prometheus", "loki", "alloy", "primary-0", "primary-1", "primary-2"] + bootstrap
             + ["l1-0-rpc-0", "l1-0-aggregator", "l1-0-relayer"] + validators,
         )
         # Identities: 3 primary, then validators 3..7, RPC 8, bootstrap 9..12.
@@ -203,7 +221,7 @@ class DeploymentTest(unittest.TestCase):
         )
         self.assertEqual(
             manifest["observability"],
-            {"prometheus_url": "http://prometheus:9090", "alloy_url": "http://alloy:12345"},
+            {"prometheus_url": "http://prometheus:9090", "loki_url": "http://loki:3100", "alloy_url": "http://alloy:12345"},
         )
         self.assertEqual(manifest["l1s"][0]["staking_manager_address"], "<address>")
         self.assertEqual(manifest["l1s"][0]["bridge"]["home"], "<home>")
@@ -296,7 +314,7 @@ class ObservabilityTest(unittest.TestCase):
                     planned += [node.name for node in l1.nodes + l1.bootstrap_nodes]
                     addresses += [target.address for target in l1.metrics_targets]
                 planned += [address.split(":")[0] for address in addresses]
-                self.assertEqual(sorted(planned), sorted(set(services) - {"tools", "prometheus", "alloy"}))
+                self.assertEqual(sorted(planned), sorted(set(services) - {"tools", "prometheus", "loki", "alloy"}))
                 # Each support service declares the port that Alloy scrapes.
                 for address in addresses:
                     name, port = address.split(":")
@@ -304,7 +322,8 @@ class ObservabilityTest(unittest.TestCase):
 
     def test_prometheus_stores_and_alloy_scrapes(self):
         plan, services = self.run_package({})
-        self.assertEqual(list(services)[:3], ["tools", "prometheus", "alloy"])
+        # The stack starts before the network, the stores before the collector.
+        self.assertEqual(list(services)[:5], ["tools", "prometheus", "loki", "alloy", "primary-0"])
         prometheus = services["prometheus"]
         self.assertIn("--web.enable-remote-write-receiver", prometheus.cmd)
         self.assertNotIn("scrape_configs", plan.rendered("prometheus-config")["prometheus.yml"])
@@ -312,7 +331,12 @@ class ObservabilityTest(unittest.TestCase):
         self.assertEqual(alloy.image, constants.IMAGES["alloy"])
         self.assertEqual(alloy.env_vars["PROMETHEUS_REMOTE_WRITE_URL"], "http://prometheus:9090/api/v1/write")
         self.assertIn("--disable-reporting", alloy.cmd)
-        self.assertEqual(alloy.files["/etc/alloy"].artifact_names, ["alloy-metrics-pipeline"])
+        self.assertEqual(alloy.env_vars["LOKI_PUSH_URL"], "http://loki:3100/loki/api/v1/push")
+        self.assertEqual(alloy.files["/etc/alloy"].artifact_names, ["alloy-metrics-pipeline", "alloy-logs-pipeline"])
+        self.assertEqual(alloy.files["/logs"].persistent_key, constants.NODE_LOGS_VOLUME_KEY)
+        self.assertEqual((alloy.user.uid, alloy.user.gid), (0, 0))
+        self.assertEqual(services["loki"].image, constants.IMAGES["loki"])
+        self.assertFalse(plan.rendered("loki-config")["config.yaml"]["analytics"]["reporting_enabled"])
         # Nine nodes: the limits grow with the network.
         self.assertEqual(alloy.max_memory, constants.ALLOY_BASE_MEMORY + 9 * constants.ALLOY_NODE_MEMORY)
         self.assertEqual(prometheus.max_memory, constants.PROMETHEUS_BASE_MEMORY + 9 * constants.PROMETHEUS_NODE_MEMORY)
@@ -323,7 +347,7 @@ class ObservabilityTest(unittest.TestCase):
         # The pipeline reads one file per job; its `job_name` is the constant.
         pipeline = (starlark.ROOT / "static_files/observability/alloy/metrics.alloy").read_text()
         self.assertEqual(
-            set(targets), {job + ".json" for job in vars(constants.METRICS_JOB).values()}
+            set(targets), {job + ".json" for job in vars(constants.METRICS_JOB).values()} | {"logs.json"}
         )
         self.assertEqual(
             sorted(re.findall(r'"/etc/alloy-targets/(.+)\.json"', pipeline)),
@@ -347,6 +371,75 @@ class ObservabilityTest(unittest.TestCase):
         # Without a bridge no relayer runs; its target file is an empty list.
         plan, _ = self.run_package({"bridge": False})
         self.assertEqual(plan.rendered("alloy-targets")["icm-relayer.json"], [])
+
+    def test_each_switch_starts_only_its_services(self):
+        for args, expected in (
+            ({}, ["prometheus", "loki", "alloy"]),
+            ({"logs": False}, ["prometheus", "alloy"]),
+            ({"metrics": False}, ["loki", "alloy"]),
+            ({"metrics": False, "logs": False}, []),
+        ):
+            with self.subTest(args=args):
+                plan, services = self.run_package(args)
+                stack = [name for name in services if name in ("prometheus", "loki", "alloy")]
+                self.assertEqual(stack, expected)
+                manifest = main.run(starlark.FakePlan(), args)
+                self.assertEqual(sorted(manifest["observability"]), sorted(name + "_url" for name in expected))
+                if not expected:
+                    continue
+                # Alloy gets a pipeline, a target file, and an address only
+                # for a store that runs.
+                alloy = services["alloy"]
+                self.assertEqual(
+                    alloy.files["/etc/alloy"].artifact_names,
+                    ["alloy-{}-pipeline".format(kind) for kind, store in (("metrics", "prometheus"), ("logs", "loki")) if store in expected],
+                )
+                self.assertEqual("PROMETHEUS_REMOTE_WRITE_URL" in alloy.env_vars, "prometheus" in expected)
+                self.assertEqual("LOKI_PUSH_URL" in alloy.env_vars, "loki" in expected)
+                self.assertEqual("/logs" in alloy.files, "loki" in expected)
+                self.assertEqual("logs.json" in plan.rendered("alloy-targets"), "loki" in expected)
+                self.assertEqual("avalanche.json" in plan.rendered("alloy-targets"), "prometheus" in expected)
+                self.assertEqual("/logs" in services["primary-0"].files, "loki" in expected)
+
+    def test_log_targets_name_the_log_files_of_every_node(self):
+        plan, services = self.run_package({})
+        targets = plan.rendered("alloy-targets")["logs.json"]
+        bootstrap = ["l1-0-bootstrap-{}".format(i) for i in range(4)]
+        # Every node that ever runs, the temporary ones included.
+        self.assertEqual(
+            sorted(target["labels"]["node"] for target in targets),
+            sorted(set(services) - {"tools", "prometheus", "loki", "alloy", "l1-0-aggregator", "l1-0-relayer"}),
+        )
+        metrics = {target["labels"]["node"]: target["labels"] for target in plan.rendered("alloy-targets")["avalanche.json"]}
+        for target in targets:
+            labels = dict(target["labels"])
+            node = labels["node"]
+            with self.subTest(node=node):
+                # Without an address a file_sd entry yields no target at all.
+                self.assertEqual(target["targets"], ["localhost"])
+                log_dir = plan.rendered(node + "-config")["node.json"]["log-dir"]
+                self.assertEqual(labels.pop("__path__"), log_dir + "/*.log")
+                self.assertTrue(labels.pop("__path_exclude__").startswith(log_dir + "/*-"))
+                self.assertEqual(labels.pop("job"), constants.METRICS_JOB.node)
+                # Logs and metrics of a node carry the same labels.
+                if node in bootstrap:
+                    self.assertEqual(labels, {"node": node, "role": "bootstrap", "l1": "l1-0"})
+                else:
+                    self.assertEqual(labels, metrics[node])
+
+    def test_the_log_pipeline_skips_rotated_files_only(self):
+        import fnmatch
+        plan, _ = self.run_package({})
+        labels = plan.rendered("alloy-targets")["logs.json"][0]["labels"]
+        directory = "/logs/primary-0/"
+        blockchain_id = "2LFmzhHDKxkreihEtPanVmofuFn63bsh8twnRXEbDhBtCJxURB"
+        for name, read in (
+            ("main.log", True), ("P.log", True), ("vm-factory.log", True), (blockchain_id + ".log", True),
+            ("main-2026-11-19T10-00-00.000.log", False), (blockchain_id + "-2026-11-19T10-00-00.000.log", False),
+        ):
+            with self.subTest(file=name):
+                self.assertTrue(fnmatch.fnmatchcase(directory + name, labels["__path__"]))
+                self.assertEqual(not fnmatch.fnmatchcase(directory + name, labels["__path_exclude__"]), read)
 
     def test_the_scrape_timeout_is_below_the_interval(self):
         # Alloy does not start otherwise, and `alloy validate` does not see it.

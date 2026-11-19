@@ -2,7 +2,7 @@
 
 A [Kurtosis](https://docs.kurtosis.com/) package for local Avalanche devnets. It starts a **Primary Network** (P-, X-, and C-Chain) and one or more **Avalanche L1s**: Subnet-EVM blockchains with their own validators.
 
-The package registers each L1 and its validators, supports Proof of Authority and Proof of Stake, and can add a token bridge and metrics collection.
+The package registers each L1 and its validators, supports Proof of Authority and Proof of Stake, and can add a token bridge and the collection of metrics and logs.
 
 > For local development and testing only. Funded accounts use public private keys. Never use these keys for real funds.
 
@@ -46,7 +46,8 @@ flowchart TB
             T["tools<br/>Setup and checks"]
             C["alloy<br/>Collector"]
             M["prometheus<br/>Metrics store"]
-            T ~~~ C ~~~ M
+            L["loki<br/>Log store"]
+            T ~~~ C ~~~ M ~~~ L
         end
         primary ---|"registered on P-Chain"| l1
         l1 ~~~ support
@@ -68,6 +69,7 @@ The first run downloads images and builds the tools image from source. Default i
 | Signature aggregator | v0.6.0 |
 | ICM relayer | v1.8.2 |
 | Alloy | v1.22.0 |
+| Loki | v3.7.10 |
 | Prometheus | v3.2.1 |
 
 ## Quick start
@@ -106,6 +108,7 @@ Pass your YAML file with `--args-file`. Without one, the package uses the defaul
 | `l1.chain_id` | EVM chain ID of the first L1; each subsequent L1 increments it by one. |
 | `bridge` | Deploy a token bridge between the C-Chain and each L1. |
 | `metrics` | Collect metrics: Alloy scrapes every node, relayer, and signature aggregator; Prometheus stores the samples. |
+| `logs` | Collect logs: every node writes its log files to a shared volume; Alloy reads them and Loki stores the lines. |
 | `images` | Override service images. |
 
 The remaining arguments configure AvalancheGo and Subnet-EVM. The reference files explain each option and its default:

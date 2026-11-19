@@ -1,0 +1,94 @@
+// Log pipeline of Grafana Alloy: tail the log files of every node, send to Loki.
+//
+// src/observability/alloy.star mounts this file, the volume that holds the log
+// files of every node (/logs/<node>/<logger>.log), and the target file
+// /etc/alloy-targets/logs.json, and it sets LOKI_PUSH_URL. A target names the
+// files of one node and its labels (`node`, `role`, `l1`).
+
+discovery.file "logs" {
+	files = ["/etc/alloy-targets/logs.json"]
+}
+
+local.file_match "logs" {
+	path_targets = discovery.file.logs.targets
+	// A node creates its log files when it starts. Find them soon.
+	sync_period = "5s"
+}
+
+loki.source.file "logs" {
+	targets    = local.file_match.logs.targets
+	forward_to = [loki.process.avalanchego.receiver]
+}
+
+loki.process "avalanchego" {
+	forward_to = [loki.write.loki.receiver]
+
+	// The Subnet-EVM plugin colours its lines.
+	stage.decolorize { }
+
+	// The file name is the logger: main, P, X, C, or the blockchain ID of an L1.
+	stage.regex {
+		source     = "filename"
+		expression = "/(?P<logger>[^/]+)\\.log$"
+	}
+
+	stage.labels {
+		values = {logger = ""}
+	}
+
+	stage.label_drop {
+		values = ["filename"]
+	}
+
+	// The default format of AvalancheGo:
+	//   [11-19|10:00:00.123] INFO <P Chain> platformvm/vm.go:123 message {...}
+	stage.match {
+		selector = "{job=\"avalanche\"} |~ \"^\\\\[\\\\d{2}-\\\\d{2}\\\\|\""
+
+		stage.regex {
+			expression = "^\\[(?P<time>[0-9|:.-]+)\\] (?P<level>[A-Z]+) "
+		}
+	}
+
+	// The format with `log-format: json`.
+	stage.match {
+		selector = "{job=\"avalanche\"} |~ \"^\\\\{\""
+
+		stage.json {
+			expressions = {level = "level", time = "timestamp"}
+		}
+	}
+
+	// Only a line with a level gets the label. Other lines, such as a stack
+	// trace, belong to the line before them.
+	stage.match {
+		selector = "{job=\"avalanche\"} |~ \"^(\\\\[\\\\d{2}-\\\\d{2}\\\\||\\\\{)\""
+
+		stage.template {
+			source   = "level"
+			template = "{{ ToLower .Value }}"
+		}
+
+		stage.labels {
+			values = {level = ""}
+		}
+	}
+
+	// A plain line has no year and no time zone: Alloy takes the current year,
+	// and the containers run in UTC. A line without a time keeps the time at
+	// which Alloy read it. `fudge` only stops two such lines from sharing one
+	// timestamp.
+	stage.timestamp {
+		source            = "time"
+		format            = "01-02|15:04:05.000"
+		fallback_formats  = ["2006-01-02T15:04:05.000Z0700"]
+		location          = "UTC"
+		action_on_failure = "fudge"
+	}
+}
+
+loki.write "loki" {
+	endpoint {
+		url = sys.env("LOKI_PUSH_URL")
+	}
+}
