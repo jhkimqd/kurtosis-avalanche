@@ -53,6 +53,8 @@ With `bridge: true`, the package connects the C-Chain and the L1 with Avalanche 
 
 ## Check a running devnet
 
+This section checks the network. For its metrics, logs, and dashboards, see the [observability guide](observability.md) and `scripts/check-observability.sh`.
+
 `scripts/check-devnet.sh` repeats the important checks from outside the enclave, with `curl` and Foundry's `cast`. It needs Docker, the Kurtosis CLI, `curl`, and `jq`.
 
 ```sh

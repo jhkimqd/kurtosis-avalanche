@@ -128,7 +128,7 @@ def check(args):
     for key in ["bridge", "metrics", "logs", "dashboards"]:
         if type(args[key]) != "bool":
             fail("{} must be a boolean".format(key))
-    # Grafana shows what Prometheus and Loki store. Without both it is empty.
+    # Grafana shows what Prometheus and Loki store. With neither it is empty.
     if args["dashboards"] and not (args["metrics"] or args["logs"]):
         fail(
             "dashboards needs metrics or logs: set one of them to true, or set dashboards to false"

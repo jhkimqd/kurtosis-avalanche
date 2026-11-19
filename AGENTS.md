@@ -9,7 +9,7 @@ This file guides coding agents and human contributors. Read it before you change
 ```bash
 kurtosis engine start
 kurtosis run --enclave avalanche . --args-file examples/poa.yml   # 4 nodes, about 1 minute; or:
-kurtosis run --enclave avalanche . --args-file examples/pos.yml   # 5 staked validators, bridge, metrics
+kurtosis run --enclave avalanche . --args-file examples/pos.yml   # 5 staked validators, bridge, Grafana
 kurtosis enclave inspect avalanche                                # services and ports
 kurtosis enclave rm -f avalanche                                  # remove the network
 ```
@@ -94,6 +94,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | Funded account (EWOQ) | `0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC` |
 | EWOQ private key | `0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027` (public; devnet only) |
 | ValidatorManager on every L1 | `0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25` |
+| Grafana | `kurtosis port print <enclave> grafana http`; no login to look, `admin` / `admin` to edit |
 
 Service names: `primary-<n>`, `l1-<i>-validator-<n>`, `l1-<i>-rpc-<n>`, `l1-<i>-bootstrap-<n>` (temporary, PoS setup only), `l1-<i>-aggregator`, `l1-<i>-relayer`, `alloy`, `prometheus`, `loki`, `grafana`, `tools`. All indexes start at 0.
 

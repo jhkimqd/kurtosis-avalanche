@@ -129,7 +129,7 @@ Unknown arguments and options managed by the package, such as ports and key path
 
 ## Observe
 
-With the default arguments the package starts Grafana before the network, so the dashboards show the deployment as it happens. Open the address that this command prints; no login is needed:
+With the default arguments, as in `examples/pos.yml`, the package starts Grafana before the network, so the dashboards show the deployment as it happens. `examples/poa.yml` turns the stack off. Open the address that this command prints; no login is needed:
 
 ```sh
 kurtosis port print avalanche grafana http

@@ -18,7 +18,7 @@ The stack starts before the Primary Network. It records the deployment itself, a
 kurtosis port print avalanche grafana http
 ```
 
-Open the printed address. No login is needed to look at the dashboards. To edit a dashboard or to use Explore, sign in as `admin` with the password `admin`.
+Open the printed address. No login is needed to look at the dashboards; a visitor without a login cannot change anything. To use Explore or to try a change, sign in as `admin` with the password `admin`. The provisioned dashboards cannot be saved from the UI: see "Change a dashboard" below.
 
 Kurtosis publishes the Grafana port on every network interface of the host. The devnet holds no secret, but do not run it on a network that you do not trust.
 
@@ -42,7 +42,14 @@ kurtosis service exec avalanche tools 'lab run http://l1-0-rpc-0:9650/ext/bc/<bl
 
 The command sends 20 transfers, one after the other, and takes about 40 seconds.
 
-`kurtosis files download avalanche deployment-manifest` gives the manifest with the RPC URL of each L1.
+The deployment manifest names the RPC URL of each L1 (`l1s[].rpc_urls`) and the URL of each service of the stack (`observability`):
+
+```sh
+kurtosis files download avalanche deployment-manifest manifest
+jq '.l1s[].rpc_urls, .observability' manifest/deployment.json
+```
+
+The URLs use service names, which resolve inside the enclave only. From your machine use `kurtosis port print`.
 
 ## Labels
 
@@ -78,7 +85,7 @@ The dashboards are generated. Change `scripts/gen-dashboards.py`, then run:
 python3 scripts/gen-dashboards.py
 ```
 
-Commit the script and the JSON files together; a test compares them. A change that you save in the Grafana UI is lost when the enclave is removed.
+Commit the script and the JSON files together; a test compares them. Grafana does not save a change to one of these dashboards from the UI. A copy that you save under another name is lost when the enclave is removed.
 
 ## Limits
 

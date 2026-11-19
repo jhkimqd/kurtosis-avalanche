@@ -13,7 +13,8 @@ SERVICE_NAME = "tools"
 STATE_PATH = "/state"
 # Genesis, upgrade schedule, and node keys (written by `lab prepare`).
 NETWORK_PATH = STATE_PATH + "/network"
-# Base L1 genesis and contract artifacts (uploaded from ./static_files).
+# The files of ./static_files. The tools read the base L1 genesis and the
+# contract artifacts; the observability files in it are for other services.
 STATIC_FILES_PATH = "/fixtures"
 
 
