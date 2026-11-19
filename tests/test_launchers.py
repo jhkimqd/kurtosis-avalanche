@@ -340,7 +340,10 @@ class ObservabilityTest(unittest.TestCase):
         self.assertEqual(alloy.files["/logs"].persistent_key, constants.NODE_LOGS_VOLUME_KEY)
         self.assertEqual((alloy.user.uid, alloy.user.gid), (0, 0))
         self.assertEqual(services["loki"].image, constants.IMAGES["loki"])
-        self.assertFalse(plan.rendered("loki-config")["config.yaml"]["analytics"]["reporting_enabled"])
+        loki = plan.rendered("loki-config")["config.yaml"]
+        self.assertFalse(loki["analytics"]["reporting_enabled"])
+        # A CI runner with a 93% full disk lost every log line to the default of 0.9.
+        self.assertEqual(loki["ingester"]["wal"]["disk_full_threshold"], 0)
         # Nine nodes: the limits grow with the network.
         self.assertEqual(alloy.max_memory, constants.ALLOY_BASE_MEMORY + 9 * constants.ALLOY_NODE_MEMORY)
         self.assertEqual(prometheus.max_memory, constants.PROMETHEUS_BASE_MEMORY + 9 * constants.PROMETHEUS_NODE_MEMORY)

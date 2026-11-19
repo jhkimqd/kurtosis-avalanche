@@ -70,6 +70,10 @@ def _config():
                 }
             ]
         },
+        # Keep storing on a development machine with a nearly full disk, as the
+        # nodes do (see DEFAULT_NODE_CONFIG). By default Loki refuses every
+        # line once the disk is 90% full.
+        "ingester": {"wal": {"disk_full_threshold": 0}},
         "limits_config": {
             # Lets Grafana draw the volume of log lines per label.
             "volume_enabled": True,
