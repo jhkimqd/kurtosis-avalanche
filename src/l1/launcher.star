@@ -29,8 +29,8 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
         l1_index: number of this L1, starting at 0.
         first_node_index: first generated node identity reserved for this L1.
     Returns:
-        struct(nodes, manifest): the permanent nodes of the L1, and a dict of
-        the L1's IDs, contract addresses, and RPC URLs.
+        struct(manifest): a dict of the L1's IDs, contract addresses, and RPC
+        URLs.
     """
     l1_args = args["l1"]
     name = generate_name(l1_index)
@@ -228,7 +228,7 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
         ["lab", "verify-rpcs"] + rpc_urls,
     )
 
-    return struct(nodes=validator_nodes + rpc_nodes, manifest=manifest)
+    return struct(manifest=manifest)
 
 
 def generate_name(l1_index):

@@ -16,7 +16,6 @@ def launch(plan, args, network):
 
     Returns:
         struct with
-        nodes: context of each validator.
         bootstrap_peer: struct(node_id, ip_address) that later nodes sync from.
         rpc_url: base URL of the first validator; the API paths below extend it.
         p_chain_rpc_url, x_chain_rpc_url, c_chain_rpc_url: chain API endpoints.
@@ -64,7 +63,6 @@ def launch(plan, args, network):
 
     rpc_url = nodes[0].rpc_url
     return struct(
-        nodes=nodes,
         bootstrap_peer=bootstrap_peer,
         rpc_url=rpc_url,
         p_chain_rpc_url=rpc_url + "/ext/bc/P",
