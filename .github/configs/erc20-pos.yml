@@ -5,3 +5,9 @@ l1:
 
 # CI coverage: metrics without logs. The nodes then keep their log files.
 logs: false
+
+# CI coverage: a block explorer for the C-Chain and the L1. The ERC-20 stakes
+# and the bridge give both chains internal transactions and token transfers.
+# scripts/check-devnet.sh checks a transaction, its token transfer, and the
+# internal calls of a known contract in each explorer.
+explorer: true
