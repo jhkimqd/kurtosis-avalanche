@@ -198,6 +198,10 @@ class DeploymentTest(unittest.TestCase):
              "l1-0-rpc-0", "l1-0-rpc-1", "l1-0-aggregator"],
         )
         self.assertEqual(self.by_name(commands, "prepare")[0][3:], ["6", "2"])
+        # `lab` reads the deployment identity of a follow-only L1 node from the
+        # first Primary Network validator; the tools service starts before it.
+        self.assertEqual(plan.services()["tools"].env_vars["LAB_PRIMARY_URI"], manifest["primary_network"]["rpc_url"])
+        self.assertEqual(plan.services()["tools"].env_vars["LAB_INSTANCE"], "devnet")
         # `lab create` receives the chain config and the subnet config as JSON.
         self.assertEqual(
             [json.loads(argument) if argument[0] == "{" else argument for argument in self.by_name(commands, "create")[0][6:]],

@@ -125,7 +125,7 @@ The remaining arguments configure AvalancheGo and Subnet-EVM. The reference file
 | `primary_network.c_chain_config` | [C-Chain settings](docs/config/c-chain.yml) |
 | `primary_network.p_chain_config`, `primary_network.x_chain_config` | [P-Chain and X-Chain settings](docs/config/p-x-chain.yml) |
 
-Unknown arguments and options managed by the package, such as ports and key paths, are rejected. Node flags go on the command line, so a flag that the node image does not know stops the node at start ([ADR 0014](docs/adr/0014-node-flags-on-the-command-line.md)). See the [L1 lifecycle guide](docs/l1-lifecycle.md) for deployment details.
+Unknown arguments and options managed by the package, such as ports and key paths, are rejected. Node flags go on the command line, so a flag that the node image does not know stops the node at start ([ADR 0014](docs/adr/0014-node-flags-on-the-command-line.md)). A custom AvalancheGo build goes in `images`; its extra flags go in `node_config`. L1 nodes with `p-chain-follow-only` are supported ([ADR 0015](docs/adr/0015-follow-only-node-identity.md)). See the [L1 lifecycle guide](docs/l1-lifecycle.md) for deployment details.
 
 ## Observe
 

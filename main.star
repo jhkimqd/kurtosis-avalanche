@@ -25,7 +25,7 @@ def run(plan, args={}):
     l1_node_count = l1_launcher.node_count(args["l1"])
 
     # 1. Start the tools service and generate the genesis and all node keys.
-    tools.launch(plan, args)
+    tools.launch(plan, args, primary_network_launcher.planned_rpc_url(args))
     network = tools.generate_network(
         plan,
         node_count=primary_validator_count + args["l1"]["count"] * l1_node_count,

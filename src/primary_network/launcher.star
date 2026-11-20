@@ -71,6 +71,14 @@ def launch(plan, args, network):
     )
 
 
+def planned_rpc_url(args):
+    """Returns the RPC URL that `launch` will return, before the node exists.
+
+    The tools service starts first and needs it (see `tools.launch`).
+    """
+    return node_launcher.rpc_url(planned_nodes(args)[0].name)
+
+
 def generate_name(index):
     """Returns the service name of a Primary Network validator."""
     return "primary-{}".format(index)

@@ -147,8 +147,13 @@ def launch(plan, args, network, name, role, index, bootstrap_peer=None, l1=None)
         name=name,
         role=role,
         ip_address=service.ip_address,
-        rpc_url="http://{}:{}".format(name, constants.NODE_HTTP_PORT_NUMBER),
+        rpc_url=rpc_url(name),
     )
+
+
+def rpc_url(name):
+    """Returns the base URL of the HTTP API of the node named `name`."""
+    return "http://{}:{}".format(name, constants.NODE_HTTP_PORT_NUMBER)
 
 
 def cli_flags(flags):

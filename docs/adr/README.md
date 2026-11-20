@@ -18,6 +18,7 @@ An ADR records one decision that shapes this package: the situation, the choice,
 | [0012](0012-daily-nightly-icm-tests.md) | Run daily release reports and nightly application delivery tests |
 | [0013](0013-observability-stack.md) | Collect metrics and logs with Alloy, and show them in Grafana |
 | [0014](0014-node-flags-on-the-command-line.md) | Pass unmanaged node flags on the command line, so that AvalancheGo rejects an unknown flag |
+| [0015](0015-follow-only-node-identity.md) | Identify a follow-only L1 node through the Primary Network node it is connected to |
 
 ## Add an ADR
 

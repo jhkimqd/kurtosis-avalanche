@@ -97,10 +97,53 @@ func deploymentIdentity(ctx context.Context, uri string) (string, error) {
 	}
 	block, err := platformvm.NewClient(uri).GetBlockByHeight(ctx, 0)
 	if err != nil {
-		return "", err
+		return followerIdentity(ctx, uri, err)
 	}
 	if len(block) == 0 {
 		return "", fmt.Errorf("missing P-chain genesis identity")
 	}
 	return fmt.Sprintf("%s:%x", os.Getenv("LAB_INSTANCE"), sha256.Sum256(block)), nil
+}
+
+// followerIdentity identifies a node whose P-Chain does not answer platform
+// calls: a node that runs --p-chain-follow-only never finishes P-Chain
+// bootstrapping. It returns the identity of the Primary Network node in
+// LAB_PRIMARY_URI, but only if the node at uri reports its P-Chain as not
+// bootstrapped and is connected to that Primary Network node. Otherwise it
+// returns cause, the error of the platform call.
+func followerIdentity(ctx context.Context, uri string, cause error) (string, error) {
+	primary := strings.TrimRight(os.Getenv("LAB_PRIMARY_URI"), "/")
+	if primary == "" || primary == strings.TrimRight(uri, "/") {
+		return "", cause
+	}
+	var bootstrapped struct {
+		IsBootstrapped bool `json:"isBootstrapped"`
+	}
+	if e := rpc(ctx, uri+"/ext/info", "info.isBootstrapped", map[string]any{"chain": "P"}, &bootstrapped); e != nil || bootstrapped.IsBootstrapped {
+		return "", cause
+	}
+	identity, e := deploymentIdentity(ctx, primary)
+	if e != nil {
+		return "", e
+	}
+	var node struct {
+		NodeID string `json:"nodeID"`
+	}
+	if e = rpc(ctx, primary+"/ext/info", "info.getNodeID", map[string]any{}, &node); e != nil {
+		return "", e
+	}
+	var peers struct {
+		Peers []struct {
+			NodeID string `json:"nodeID"`
+		} `json:"peers"`
+	}
+	if e = rpc(ctx, uri+"/ext/info", "info.peers", map[string]any{"nodeIDs": []string{node.NodeID}}, &peers); e != nil {
+		return "", e
+	}
+	for _, peer := range peers.Peers {
+		if peer.NodeID == node.NodeID {
+			return identity, nil
+		}
+	}
+	return "", fmt.Errorf("%s is not connected to %s (%s): %w", uri, primary, node.NodeID, cause)
 }

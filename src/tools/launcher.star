@@ -18,8 +18,14 @@ NETWORK_PATH = STATE_PATH + "/network"
 STATIC_FILES_PATH = "/fixtures"
 
 
-def launch(plan, args):
-    """Starts the tools service. It idles until the package runs a command."""
+def launch(plan, args, primary_rpc_url):
+    """Starts the tools service. It idles until the package runs a command.
+
+    Args:
+        primary_rpc_url: base URL of the first Primary Network validator. `lab`
+            reads the deployment identity from it when an L1 node cannot
+            answer P-Chain calls (a node with `p-chain-follow-only`).
+    """
     static_files = plan.upload_files(name="static-files", src="../../static_files")
     image = args["images"]["tools"]
     if image == "":
@@ -34,9 +40,9 @@ def launch(plan, args):
                 STATIC_FILES_PATH: static_files,
                 STATE_PATH: Directory(persistent_key="tools-state"),
             },
-            # `lab` signs only where this variable is set. It guards against
+            # `lab` signs only where LAB_INSTANCE is set. It guards against
             # an accidental run of the binary outside the tools service.
-            env_vars={"LAB_INSTANCE": "devnet"},
+            env_vars={"LAB_INSTANCE": "devnet", "LAB_PRIMARY_URI": primary_rpc_url},
             entrypoint=["sleep"],
             cmd=["infinity"],
         ),
