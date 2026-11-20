@@ -10,6 +10,9 @@
 #   4. Transactions on the C-Chain and on each L1: a transfer from the funded
 #      account, a contract deployment, contract calls, and new blocks.
 #   5. Every node of an L1 holds the same latest block.
+#   6. With `explorer`, each explorer holds the transactions of step 4 and
+#      their token transfer, the internal calls of a contract that makes them,
+#      and reports its indexing finished; its web app answers.
 #
 # It needs Docker, the Kurtosis CLI, curl, and jq. It signs with the public
 # EWOQ development key and sends a few transactions. Foundry's `cast` runs in a
@@ -87,6 +90,8 @@ check_evm() {
     check "contract call symbol()" "$(cast call --rpc-url "$url" "$token" 'symbol()(string)' 2>&1)" '"CASH"'
     receipt=$(send --rpc-url "$url" "$token" 'transfer(address,uint256)' "$recipient" 5)
     check "contract transaction transfer(), receipt status" "$(jq -r .status <<<"$receipt")" 0x1
+    # Step 6 looks for this transaction in the explorer of the chain.
+    jq -r '.transactionHash // empty' <<<"$receipt" >"$work/last-tx-$2"
     check "contract state balanceOf(recipient)" \
         "$(cast call --rpc-url "$url" "$token" 'balanceOf(address)(uint256)' "$recipient" 2>&1)" 5
 
@@ -163,6 +168,56 @@ for ((i = 0; i < $(jq '.l1s | length' "$manifest"); i++)); do
         done
         check "$node holds block $((height))" "${hash:-no answer}" "$(jq -r '.hash // "unknown"' <<<"$latest")"
     done
+done
+
+# ── 6. Block explorers ───────────────────────────────────────────────────────
+# explorer_api <api-url> <path>: one request to an explorer API on this host.
+# Prints {} when the explorer does not answer; the check that reads it fails.
+explorer_api() { curl -s -m 10 "$1$2" 2>/dev/null | jq -c 'if type == "object" then . else {} end' 2>/dev/null || echo '{}'; }
+for ((e = 0; e < $(jq '.explorers // [] | length' "$manifest"); e++)); do
+    explorer() { jq -r ".explorers[$e].$1" "$manifest"; }
+    api_url=$(explorer api_url)
+    chain=$(explorer chain)
+    tx=$(cat "$work/last-tx-$(explorer evm_chain_id)" 2>/dev/null || true)
+    tx=${tx:-none}
+    echo "Explorer of $chain at $(explorer url)"
+    check "web app, HTTP status" "$(curl -s -m 10 -o /dev/null -w '%{http_code}' "$(explorer url)" 2>/dev/null || true)" 200
+    # The explorer indexes a new block within seconds, so it may lag a moment.
+    # The transaction exists only on this chain, so finding it also shows that
+    # the explorer reads the right chain.
+    for ((attempt = 0; attempt < 30; attempt++)); do
+        status=$(explorer_api "$api_url" "/transactions/$tx" | jq -r '.status // empty')
+        [[ -z "$status" ]] || break
+        sleep 2
+    done
+    check "transaction $tx of step 4, status in the explorer" "${status:-not indexed}" ok
+    # That transaction is the CASH transfer() of step 4: one token transfer.
+    check "token transfers of that transaction" \
+        "$(explorer_api "$api_url" "/transactions/$tx/token-transfers" | jq '[.items[]? | select(.total.value == "5")] | length')" 1
+    # Internal calls: on an L1, the ValidatorManager calls the Warp precompile
+    # when it loads the first validator set. On the C-Chain, only the bridge
+    # makes calls between contracts.
+    if [[ $chain == c-chain ]]; then
+        contract=$(jq -r '[.l1s[].bridge.home // empty][0] // empty' "$manifest")
+    else
+        contract=$(jq -r --arg name "$chain" '.l1s[] | select(.name == $name) | .validator_manager_address' "$manifest")
+    fi
+    if [[ -n "$contract" ]]; then
+        for ((attempt = 0; attempt < 30; attempt++)); do
+            calls=$(explorer_api "$api_url" "/addresses/$contract/internal-transactions" | jq '.items // [] | length')
+            ((calls == 0)) || break
+            sleep 2
+        done
+        if ((calls > 0)); then pass "internal transactions of $contract: $calls"; else fail "no internal transaction of $contract"; fi
+    else
+        echo "  skip  internal transactions: no contract on this chain makes internal calls"
+    fi
+    for ((attempt = 0; attempt < 30; attempt++)); do
+        finished=$(explorer_api "$api_url" /main-page/indexing-status | jq -r '.finished_indexing_blocks == true and .finished_indexing == true')
+        [[ $finished != true ]] || break
+        sleep 2
+    done
+    check "indexing of blocks and internal transactions finished" "$finished" true
 done
 
 if ((failures > 0)); then

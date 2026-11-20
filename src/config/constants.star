@@ -45,6 +45,14 @@ IMAGES = {
     "loki": "grafana/loki@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7",
     # Prometheus v3.2.1. Stores the metrics.
     "prometheus": "prom/prometheus@sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62",
+    # Blockscout 9.0.2, the newest GPL-3.0 release with a public image (see
+    # ADR 0014). Indexes an EVM chain and serves the explorer API.
+    "blockscout": "ghcr.io/blockscout/blockscout@sha256:7659f168e4e2f6b73dd559ae5278fe96ba67bc2905ea01b57a814c68adf5a9dc",
+    # Blockscout frontend v2.3.5, the newest GPL-3.0 release with a public
+    # image. The explorer web app.
+    "blockscout_frontend": "ghcr.io/blockscout/frontend@sha256:4b69f44148414b55c6b8550bc3270c63c9f99e923d54ef0b307e762af6bac90a",
+    # PostgreSQL 17.12 (Alpine). Stores the index of every explorer.
+    "postgres": "postgres@sha256:526f86d93c6ea08fd3f1fe5605650cacc781b2c6013169a0ad8f42c7d3d84f32",
     # Go tools. Empty builds the image from ./tools.
     "tools": "",
 }
@@ -68,6 +76,10 @@ ALLOY_PORT_NUMBER = 12345
 GRAFANA_PORT_NUMBER = 3000
 LOKI_PORT_NUMBER = 3100
 PROMETHEUS_PORT_NUMBER = 9090
+
+EXPLORER_DB_PORT_NUMBER = 5432
+EXPLORER_API_PORT_NUMBER = 4000
+EXPLORER_WEB_PORT_NUMBER = 3000
 
 # ── Metrics and logs ─────────────────────────────────────────────────────────
 
@@ -99,6 +111,14 @@ PROMETHEUS_BASE_MEMORY = 384
 PROMETHEUS_NODE_MEMORY = 32
 LOKI_MAX_MEMORY = 512
 GRAFANA_MAX_MEMORY = 768
+# One explorer per EVM chain: an indexer with its API, and a web app. The
+# database holds every explorer, so its limit grows with the number of chains.
+# Measured after the PoS example with a C-Chain and one L1 explorer: each API
+# used 370 MB, each web app 180 MB, and the database 250 MB.
+EXPLORER_API_MAX_MEMORY = 1024
+EXPLORER_WEB_MAX_MEMORY = 512
+EXPLORER_DB_BASE_MEMORY = 384
+EXPLORER_DB_CHAIN_MEMORY = 128
 
 # ── L1 setup ─────────────────────────────────────────────────────────────────
 

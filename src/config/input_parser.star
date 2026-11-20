@@ -60,6 +60,11 @@ DEFAULT_ARGS = {
     "logs": True,
     # Run Grafana with dashboards for the collected metrics and logs.
     "dashboards": True,
+    # Run a Blockscout block explorer for the C-Chain and for each L1.
+    "explorer": False,
+    # First host port of the explorers. Each explorer takes two ports in a row:
+    # the web app, then its API. The C-Chain comes first, then each L1.
+    "explorer_port": 28000,
     # Container images: see `constants.IMAGES`.
     "images": constants.IMAGES,
 }
@@ -106,6 +111,30 @@ DEFAULT_L1_CHAIN_CONFIG = {
     "warp-api-enabled": True,
 }
 
+# Chain config options that the block explorer needs, added with `explorer`.
+# The explorer indexes a chain from block 0 after the deployment. It reads the
+# balance of an account at old blocks and replays old transactions, so the
+# nodes keep the state of every block ("archive" mode) instead of only recent
+# state.
+EXPLORER_CHAIN_CONFIG = {"pruning-enabled": False}
+
+# The explorer replays each transaction with `debug_traceTransaction` to find
+# its internal calls. Subnet-EVM serves the `debug_trace*` methods only with
+# `debug-tracer` in `eth-apis`, and that list replaces the upstream default.
+# The C-Chain serves them by default.
+EXPLORER_L1_ETH_APIS = [
+    # The upstream default (graft/subnet-evm/plugin/evm/config/default_config.go).
+    "eth",
+    "eth-filter",
+    "net",
+    "web3",
+    "internal-eth",
+    "internal-blockchain",
+    "internal-transaction",
+    # Added for the explorer.
+    "debug-tracer",
+]
+
 
 def parse(input_args):
     """Applies the defaults to the user arguments and validates the result.
@@ -113,8 +142,9 @@ def parse(input_args):
     Args:
         input_args: the arguments of `kurtosis run`, usually from `--args-file`.
     Returns:
-        A dict with every key of `DEFAULT_ARGS`. Each `node_config` and the
-        L1 `chain_config` hold the final values, package defaults included.
+        A dict with every key of `DEFAULT_ARGS`. Each `node_config`, the L1
+        `chain_config`, and the C-Chain config hold the final values, package
+        defaults included.
     """
     input_args = _with_defaults(input_args, DEFAULT_ARGS, "the arguments")
     args = {}
@@ -133,7 +163,16 @@ def parse(input_args):
         node_config.update(args[section]["node_config"])
         args[section]["node_config"] = node_config
 
-    args["l1"]["chain_config"] = DEFAULT_L1_CHAIN_CONFIG | args["l1"]["chain_config"]
+    l1_chain_config = dict(DEFAULT_L1_CHAIN_CONFIG)
+    if args["explorer"]:
+        # The user's values win; sanity_check rejects those that the explorer
+        # cannot work with.
+        l1_chain_config.update(EXPLORER_CHAIN_CONFIG)
+        l1_chain_config["eth-apis"] = list(EXPLORER_L1_ETH_APIS)
+        args["primary_network"]["c_chain_config"] = (
+            EXPLORER_CHAIN_CONFIG | args["primary_network"]["c_chain_config"]
+        )
+    args["l1"]["chain_config"] = l1_chain_config | args["l1"]["chain_config"]
 
     return args
 

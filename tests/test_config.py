@@ -24,6 +24,8 @@ class DefaultsTest(unittest.TestCase):
         self.assertEqual(args["l1"]["validator_count"], 5)
         self.assertEqual(args["images"], constants.IMAGES)
         self.assertTrue(args["bridge"] and args["metrics"] and args["logs"] and args["dashboards"])
+        self.assertFalse(args["explorer"])
+        self.assertEqual(args["explorer_port"], 28000)
 
     def test_a_key_without_a_value_keeps_its_default(self):
         # YAML parses a key that holds only comments as None.
@@ -113,6 +115,42 @@ class ValidationTest(unittest.TestCase):
             parse(args)
         # An empty tools image selects the local build.
         self.assertEqual(parse({"images": {"tools": ""}})["images"]["tools"], "")
+
+    def test_explorer_arguments(self):
+        self.assert_rejected({"explorer": "yes"})
+        for args in (
+            {"explorer_port": "28000"},
+            {"explorer_port": 1023},
+            # Two L1s need six host ports: 65530..65535 is the last range.
+            {"explorer_port": 65531, "l1": {"count": 2}},
+        ):
+            self.assert_rejected(dict(args, explorer=True))
+        self.assertEqual(parse({"explorer": True, "explorer_port": 65530, "l1": {"count": 2}})["explorer_port"], 65530)
+
+    def test_explorer_rejects_chain_configs_that_hide_data(self):
+        for args in (
+            {"l1": {"chain_config": {"pruning-enabled": True}}},
+            {"l1": {"chain_config": {"eth-apis": ["eth", "net"]}}},
+            {"primary_network": {"c_chain_config": {"pruning-enabled": True}}},
+            {"primary_network": {"c_chain_config": {"apis": ["chain", "tx"]}}},
+            {"primary_network": {"c_chain_config": {"eth-apis": ["eth"]}}},
+            # A YAML key without a value, and a string instead of a list.
+            {"l1": {"chain_config": {"eth-apis": None}}},
+            {"l1": {"chain_config": {"eth-apis": "eth,debug-tracer"}}},
+            {"primary_network": {"c_chain_config": {"apis": None}}},
+            {"primary_network": {"c_chain_config": {"eth-apis": None}}},
+            # Subnet-EVM serves `debug_trace*` only with "debug-tracer".
+            {"l1": {"chain_config": {"eth-apis": ["eth", "debug-file-tracer"]}}},
+        ):
+            self.assert_rejected(dict(args, explorer=True))
+            # Without the explorer, the same values are accepted.
+            parse(args)
+        # The C-Chain reads the deprecated `eth-apis` only without `apis`.
+        parse({"explorer": True, "primary_network": {"c_chain_config": {"apis": ["trace"], "eth-apis": ["eth"]}}})
+        full = list(input_parser.EXPLORER_L1_ETH_APIS)
+        parse({"explorer": True, "l1": {"chain_config": {"eth-apis": full + ["internal-tx-pool"]}}})
+        # The C-Chain maps the deprecated "debug-file-tracer" to "trace" too.
+        parse({"explorer": True, "primary_network": {"c_chain_config": {"eth-apis": ["eth", "debug-file-tracer"]}}})
 
     def test_config_mappings(self):
         for args in (
@@ -204,6 +242,30 @@ class NodeConfigTest(unittest.TestCase):
         self.assertFalse(
             set(input_parser.DEFAULT_NODE_CONFIG) & set(sanity_check.MANAGED_NODE_FLAGS)
         )
+
+    def test_explorer_turns_on_tracing_and_archive_state(self):
+        args = parse({"explorer": True})
+        l1 = args["l1"]["chain_config"]
+        self.assertEqual(l1["pruning-enabled"], False)
+        self.assertEqual(l1["warp-api-enabled"], True)
+        self.assertIn("debug-tracer", l1["eth-apis"])
+        # `eth-apis` replaces the upstream list, so it repeats every default.
+        self.assertEqual(l1["eth-apis"][:7], ["eth", "eth-filter", "net", "web3", "internal-eth", "internal-blockchain", "internal-transaction"])
+        # The C-Chain traces by default; it only keeps every state.
+        self.assertEqual(args["primary_network"]["c_chain_config"], {"pruning-enabled": False})
+        # The user's values win.
+        apis = list(input_parser.EXPLORER_L1_ETH_APIS) + ["internal-tx-pool"]
+        args = parse({"explorer": True, "l1": {"chain_config": {"eth-apis": apis}},
+                      "primary_network": {"c_chain_config": {"log-level": "debug"}}})
+        self.assertEqual(args["l1"]["chain_config"]["eth-apis"], apis)
+        self.assertEqual(args["primary_network"]["c_chain_config"], {"pruning-enabled": False, "log-level": "debug"})
+        # Without the explorer, nothing changes.
+        args = parse({})
+        self.assertEqual(args["l1"]["chain_config"], {"warp-api-enabled": True})
+        self.assertEqual(args["primary_network"]["c_chain_config"], {})
+        # The parsed list is a copy: changing it leaves the constant alone.
+        parse({"explorer": True})["l1"]["chain_config"]["eth-apis"].append("x")
+        self.assertNotIn("x", input_parser.EXPLORER_L1_ETH_APIS)
 
     def test_chain_configs_stay_separate(self):
         args = parse(

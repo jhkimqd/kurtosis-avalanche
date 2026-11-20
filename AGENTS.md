@@ -42,7 +42,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 
 | Path | Content |
 | --- | --- |
-| `main.star` | Entry point. Five steps: tools, observability, Primary Network, L1s, manifest. |
+| `main.star` | Entry point. Six steps: tools, observability, Primary Network, L1s, explorers, manifest. |
 | `nightly.star` | Test entry point: deploy the network, then verify direct application messages between every pair of L1s. |
 | `src/config/constants.star` | Network IDs, enums, pinned images, ports, limits. |
 | `src/config/input_parser.star` | Every argument and its default; `parse()`. |
@@ -52,6 +52,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | `src/l1/launcher.star` | L1 lifecycle (ACP-77) and PoS bootstrap sizing. |
 | `src/l1/signature_aggregator.star`, `src/l1/bridge.star` | Per-L1 support services. |
 | `src/observability/launcher.star` | The observability stack. One file per service: `alloy.star` (collector), `prometheus.star` (metrics store), `loki.star` (log store), `grafana.star` (dashboards). |
+| `src/explorer/launcher.star` | The optional Blockscout explorers and their PostgreSQL database. |
 | `src/tools/launcher.star` | The tools service and the helpers that run `lab` in it. |
 | `tools/` | Go program `lab`: keys, genesis, transactions, checks. One file per concern; `main.go` lists the commands. |
 | `static_files/` | Base L1 genesis, the contract artifacts (`static_files/contracts/hashes.json` pins them), the Alloy pipelines (`static_files/observability/alloy/`), and the generated Grafana dashboards (`static_files/observability/grafana/dashboards/`). |
@@ -61,6 +62,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | `docs/config/` | Reference of the AvalancheGo options. |
 | `docs/l1-lifecycle.md` | How the package activates an L1, step by step, and how to check it. |
 | `docs/observability.md` | The observability stack: dashboards, labels, and limits. |
+| `docs/explorer.md` | The block explorers: addresses, node changes, the P-Chain and X-Chain APIs, and limits. |
 | `docs/adr/` | Architecture decision records. |
 | `scripts/` | `run.sh` (deploy), `check-devnet.sh` (check a running devnet), `check-observability.sh` (check its observability stack), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`, `gen-dashboards.py`. |
 | `tests/` | Python unit tests. `tests/starlark.py` loads the Starlark modules in Python. |
@@ -95,8 +97,9 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | EWOQ private key | `0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027` (public; devnet only) |
 | ValidatorManager on every L1 | `0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25` |
 | Grafana | `kurtosis port print <enclave> grafana http`; no login to look, `admin` / `admin` to edit |
+| Explorers (`explorer: true`) | C-Chain at http://localhost:28000, L1 `n` at port `28000 + 2 × (n + 1)`; API on the next port |
 
-Service names: `primary-<n>`, `l1-<i>-validator-<n>`, `l1-<i>-rpc-<n>`, `l1-<i>-bootstrap-<n>` (temporary, PoS setup only), `l1-<i>-aggregator`, `l1-<i>-relayer`, `alloy`, `prometheus`, `loki`, `grafana`, `tools`. All indexes start at 0.
+Service names: `primary-<n>`, `l1-<i>-validator-<n>`, `l1-<i>-rpc-<n>`, `l1-<i>-bootstrap-<n>` (temporary, PoS setup only), `l1-<i>-aggregator`, `l1-<i>-relayer`, `alloy`, `prometheus`, `loki`, `grafana`, `explorer-db`, `c-chain-explorer-api`, `c-chain-explorer`, `l1-<i>-explorer-api`, `l1-<i>-explorer`, `tools`. All indexes start at 0.
 
 Labels on every metric and log line of a node: `job` (`avalanche`), `node` (the service name), `role`, and `l1` (L1 nodes only). Logs add `logger` (the log file: `main`, `P`, `X`, `C`, or a blockchain ID) and `level`.
 
@@ -143,7 +146,7 @@ These follow kurtosis-pos (`src/config/`, launcher contract) and kurtosis-cdk (`
 2. `python3 -m unittest discover -s tests` passes with PyYAML installed.
 3. `bash scripts/check-package.sh` plans every arguments file.
 4. `bash scripts/build.sh` passes if `tools/` changed. `bash scripts/check-alloy.sh` passes if `static_files/observability/alloy/` changed.
-5. `bash scripts/run.sh examples/poa.yml` passes if `src/` or `tools/` changed. Also run `examples/pos.yml` if the change touches staking, the bridge, node config, or the observability stack; then `bash scripts/check-observability.sh <enclave>` passes.
+5. `bash scripts/run.sh examples/poa.yml` passes if `src/` or `tools/` changed. Also run `examples/pos.yml` if the change touches staking, the bridge, node config, or the observability stack; then `bash scripts/check-observability.sh <enclave>` passes. If the change touches the explorer, run `examples/pos.yml` with `explorer: true`; then `bash scripts/check-devnet.sh <enclave>` passes.
 6. Remove the enclaves that you started.
 
 ## Decisions and commits

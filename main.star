@@ -1,6 +1,7 @@
 """Entry point of the package: `kurtosis run .` calls `run`."""
 
 constants = import_module("./src/config/constants.star")
+explorer_launcher = import_module("./src/explorer/launcher.star")
 input_parser = import_module("./src/config/input_parser.star")
 l1_launcher = import_module("./src/l1/launcher.star")
 observability_launcher = import_module("./src/observability/launcher.star")
@@ -60,7 +61,13 @@ def run(plan, args={}):
         )
         l1_manifests.append(l1.manifest)
 
-    # 5. Publish the result: the manifest, and a snapshot of the tools state.
+    # 5. Start a block explorer for the C-Chain and each L1. It indexes each
+    #    chain from block 0, so it shows the whole deployment.
+    explorers = []
+    if args["explorer"]:
+        explorers = explorer_launcher.launch(plan, args, primary, l1_manifests)
+
+    # 6. Publish the result: the manifest, and a snapshot of the tools state.
     manifest = {
         "primary_network": {
             "network_id": constants.NETWORK_ID,
@@ -83,6 +90,8 @@ def run(plan, args={}):
             ]
             if url
         },
+        # One explorer per EVM chain, with its addresses on the host.
+        "explorers": explorers,
         "args": args,
     }
     plan.render_templates(

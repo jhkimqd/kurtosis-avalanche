@@ -2,7 +2,7 @@
 
 A [Kurtosis](https://docs.kurtosis.com/) package for local Avalanche devnets. It starts a **Primary Network** (P-, X-, and C-Chain) and one or more **Avalanche L1s**: Subnet-EVM blockchains with their own validators.
 
-The package registers each L1 and its validators, supports Proof of Authority and Proof of Stake, and can add a token bridge and an observability stack: metrics, logs, and Grafana dashboards.
+The package registers each L1 and its validators, supports Proof of Authority and Proof of Stake, and can add a token bridge, an observability stack (metrics, logs, and Grafana dashboards), and a Blockscout block explorer for the C-Chain and each L1.
 
 > For local development and testing only. Funded accounts use public private keys. Never use these keys for real funds.
 
@@ -73,6 +73,8 @@ The first run downloads images and builds the tools image from source. Default i
 | Grafana | v13.3.1 |
 | Loki | v3.7.10 |
 | Prometheus | v3.2.1 |
+| Blockscout, with `explorer` | 9.0.2, frontend v2.3.5 |
+| PostgreSQL, with `explorer` | 17.12 |
 
 ## Quick start
 
@@ -112,6 +114,8 @@ Pass your YAML file with `--args-file`. Without one, the package uses the defaul
 | `metrics` | Collect metrics: Alloy scrapes every node, relayer, and signature aggregator; Prometheus stores the samples. |
 | `logs` | Collect logs: every node writes its log files to a shared volume; Alloy reads them and Loki stores the lines. |
 | `dashboards` | Run Grafana with dashboards for the collected metrics and logs. |
+| `explorer` | Run a Blockscout block explorer for the C-Chain and each L1. Off by default. |
+| `explorer_port` | First host port of the explorers; each explorer takes two ports. |
 | `images` | Override service images. |
 
 The remaining arguments configure AvalancheGo and Subnet-EVM. The reference files explain each option and its default:
@@ -136,6 +140,10 @@ kurtosis port print avalanche grafana http
 ```
 
 Grafana opens on an overview of the devnet. Further dashboards cover one L1, the Primary Network, interchain messaging, and the logs of every node. See the [observability guide](docs/observability.md) for the dashboards, the labels, and the limits.
+
+## Explore
+
+With `explorer: true`, the package runs a [Blockscout](https://github.com/blockscout/blockscout) explorer for the C-Chain and for each L1. Open the C-Chain explorer at http://localhost:28000 and the explorer of L1 `n` at port `28000 + 2 × (n + 1)`. The deployment output lists every address under `explorers`. The P-Chain and the X-Chain are not EVM chains and have no explorer. See the [explorer guide](docs/explorer.md) for what the explorer shows, what it changes on the nodes, and its limits.
 
 ## Endpoints and accounts
 
