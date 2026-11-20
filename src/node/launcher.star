@@ -39,36 +39,38 @@ def launch(plan, args, network, name, role, index, bootstrap_peer=None, l1=None)
     section = args["primary_network"] if is_primary else args["l1"]
     keys_path = "{}/nodes/{}".format(NETWORK_PATH, index)
 
-    # User flags first; the flags below wire the node into this devnet and win.
-    flags = dict(section["node_config"])
-    flags.update(
-        {
-            # Network identity.
-            "network-id": str(constants.NETWORK_ID),
-            "genesis-file": NETWORK_PATH + "/genesis.json",
-            "upgrade-file": NETWORK_PATH + "/upgrade.json",
-            # Node identity: the TLS key pair defines the node ID, the BLS key
-            # signs Warp messages.
-            "staking-tls-key-file": keys_path + "/staker.key",
-            "staking-tls-cert-file": keys_path + "/staker.crt",
-            "staking-signer-key-file": keys_path + "/signer.key",
-            # Storage and listeners.
-            "data-dir": DATA_PATH,
-            "log-dir": log_dir(name) if args["logs"] else DATA_PATH + "/logs",
-            "http-host": "0.0.0.0",
-            "http-port": constants.NODE_HTTP_PORT_NUMBER,
-            "staking-port": constants.NODE_STAKING_PORT_NUMBER,
-            # Peers. AvalancheGo accepts only IP addresses here, not hostnames.
-            "bootstrap-ids": bootstrap_peer.node_id if bootstrap_peer else "",
-            "bootstrap-ips": (
-                "{}:{}".format(
-                    bootstrap_peer.ip_address, constants.NODE_STAKING_PORT_NUMBER
-                )
-                if bootstrap_peer
-                else ""
-            ),
-        }
-    )
+    # The package defaults and the user's `node_config` go on the command line.
+    # AvalancheGo rejects an unknown flag there and the node does not start; in
+    # a config file it ignores the key silently. See ADR 0014.
+    user_flags = section["node_config"]
+    # The flags below wire the node into this devnet. They go in node.json.
+    # sanity_check.star rejects them in `node_config`.
+    flags = {
+        # Network identity.
+        "network-id": str(constants.NETWORK_ID),
+        "genesis-file": NETWORK_PATH + "/genesis.json",
+        "upgrade-file": NETWORK_PATH + "/upgrade.json",
+        # Node identity: the TLS key pair defines the node ID, the BLS key
+        # signs Warp messages.
+        "staking-tls-key-file": keys_path + "/staker.key",
+        "staking-tls-cert-file": keys_path + "/staker.crt",
+        "staking-signer-key-file": keys_path + "/signer.key",
+        # Storage and listeners.
+        "data-dir": DATA_PATH,
+        "log-dir": log_dir(name) if args["logs"] else DATA_PATH + "/logs",
+        "http-host": "0.0.0.0",
+        "http-port": constants.NODE_HTTP_PORT_NUMBER,
+        "staking-port": constants.NODE_STAKING_PORT_NUMBER,
+        # Peers. AvalancheGo accepts only IP addresses here, not hostnames.
+        "bootstrap-ids": bootstrap_peer.node_id if bootstrap_peer else "",
+        "bootstrap-ips": (
+            "{}:{}".format(
+                bootstrap_peer.ip_address, constants.NODE_STAKING_PORT_NUMBER
+            )
+            if bootstrap_peer
+            else ""
+        ),
+    }
 
     files = {NETWORK_PATH: network.artifact}
     # A temporary node keeps its data in the container, which is removed with it.
@@ -126,7 +128,8 @@ def launch(plan, args, network, name, role, index, bootstrap_peer=None, l1=None)
                 "--config-file={}/node.json".format(CONFIG_PATH),
                 # Kurtosis replaces the placeholder with the container's IP address.
                 "--public-ip=KURTOSIS_IP_ADDR_PLACEHOLDER",
-            ],
+            ]
+            + cli_flags(user_flags),
             max_cpu=(
                 constants.BOOTSTRAP_NODE_MAX_CPU
                 if is_bootstrap
@@ -146,6 +149,36 @@ def launch(plan, args, network, name, role, index, bootstrap_peer=None, l1=None)
         ip_address=service.ip_address,
         rpc_url="http://{}:{}".format(name, constants.NODE_HTTP_PORT_NUMBER),
     )
+
+
+def cli_flags(flags):
+    """Returns AvalancheGo command-line arguments for a mapping of flags.
+
+    Args:
+        flags: flag name to value. A value is a bool, a number, a string, a
+            list (comma-separated on the command line), or a mapping
+            (`key=value` pairs, for a flag such as `tracing-headers`).
+    Returns:
+        A list of `--name=value` strings, sorted by name. A flag whose value
+        is an empty list or mapping is left out: it means the default, and
+        AvalancheGo cannot parse an empty value for such a flag.
+    """
+    return [
+        "--{}={}".format(name, _cli_value(flags[name]))
+        for name in sorted(flags.keys())
+        if not (type(flags[name]) in ("list", "dict") and len(flags[name]) == 0)
+    ]
+
+
+def _cli_value(value):
+    """Writes one flag value the way AvalancheGo parses it on the command line."""
+    if type(value) == "bool":
+        return "true" if value else "false"
+    if type(value) == "list":
+        return ",".join([str(item) for item in value])
+    if type(value) == "dict":
+        return ",".join(["{}={}".format(k, value[k]) for k in sorted(value.keys())])
+    return str(value)
 
 
 def log_dir(name):

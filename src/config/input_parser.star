@@ -126,11 +126,12 @@ def parse(input_args):
 
     sanity_check.check(args)
 
-    # Later layers win: package defaults, `node_config`, then the section.
+    # Later layers win: package defaults, `node_config`, then the section. A
+    # flag without a value keeps the value of the layer below.
     for section in ["primary_network", "l1"]:
         node_config = dict(DEFAULT_NODE_CONFIG)
-        node_config.update(args["node_config"])
-        node_config.update(args[section]["node_config"])
+        for layer in [args["node_config"], args[section]["node_config"]]:
+            node_config.update({k: v for k, v in layer.items() if v != None})
         args[section]["node_config"] = node_config
 
     args["l1"]["chain_config"] = DEFAULT_L1_CHAIN_CONFIG | args["l1"]["chain_config"]

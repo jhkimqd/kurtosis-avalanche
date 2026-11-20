@@ -33,6 +33,10 @@ class DefaultsTest(unittest.TestCase):
             args["primary_network"]["node_config"], input_parser.DEFAULT_NODE_CONFIG
         )
         self.assertTrue(args["bridge"])
+        # The same holds for one flag: it keeps the package default.
+        args = parse({"l1": {"node_config": {"snow-sample-size": None, "log-level": "info"}}})
+        self.assertEqual(args["l1"]["node_config"]["snow-sample-size"], 3)
+        self.assertEqual(args["l1"]["node_config"]["log-level"], "info")
 
     def test_parsing_does_not_change_the_defaults(self):
         before = json.dumps(input_parser.DEFAULT_ARGS, sort_keys=True)

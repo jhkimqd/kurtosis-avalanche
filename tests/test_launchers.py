@@ -45,7 +45,11 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(files["chains/P/config.json"], {"checksums-enabled": True})
         self.assertEqual(files["chains/X/config.json"], {})
         self.assertEqual(files["chains/C/config.json"], {"apis": ["chain"]})
-        self.assertEqual(flags["log-level"], "debug")
+        # User and default flags go on the command line, where AvalancheGo
+        # rejects an unknown name (ADR 0014).
+        self.assertIn("--log-level=debug", service.cmd)
+        self.assertIn("--snow-sample-size=3", service.cmd)
+        self.assertNotIn("log-level", flags)
         self.assertEqual(flags["network-id"], str(constants.NETWORK_ID))
         self.assertEqual(flags["staking-tls-key-file"], "/network/nodes/0/staker.key")
         self.assertEqual((flags["bootstrap-ids"], flags["bootstrap-ips"]), ("", ""))
@@ -83,7 +87,8 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(service.files["/l1"], "l1-0-config")
         self.assertEqual(flags["chain-config-dir"], "/l1/chains")
         self.assertEqual(flags["subnet-config-dir"], "/l1/subnets")
-        self.assertEqual(flags["log-level"], "error")
+        self.assertIn("--log-level=error", service.cmd)
+        self.assertNotIn("--log-level=warn", service.cmd)
         self.assertEqual(flags["staking-signer-key-file"], "/network/nodes/7/signer.key")
         self.assertEqual(flags["bootstrap-ids"], "NodeID-0")
         self.assertEqual(flags["bootstrap-ips"], "10.0.0.1:9651")
@@ -99,8 +104,12 @@ class NodeTest(unittest.TestCase):
                 plan, node, service, files = self.launch(
                     {}, name=name, role=role, index=3, bootstrap_peer=BOOTSTRAP, l1=None if role == "primary" else L1
                 )
-                package_flags = set(files["node.json"]) - set(input_parser.DEFAULT_NODE_CONFIG)
-                self.assertLessEqual(package_flags, set(sanity_check.MANAGED_NODE_FLAGS))
+                # node.json holds only managed flags; the command line holds the
+                # rest, so a user flag can never shadow a managed one.
+                self.assertLessEqual(set(files["node.json"]), set(sanity_check.MANAGED_NODE_FLAGS))
+                cli = [arg[2:].split("=", 1)[0] for arg in service.cmd[2:]]
+                self.assertEqual(sorted(cli), sorted(input_parser.DEFAULT_NODE_CONFIG))
+                self.assertFalse(set(cli) & set(sanity_check.MANAGED_NODE_FLAGS))
         plan, node, service, files = self.launch(
             {}, name="l1-0-bootstrap-0", role="bootstrap", index=3, bootstrap_peer=BOOTSTRAP, l1=L1
         )
@@ -109,6 +118,21 @@ class NodeTest(unittest.TestCase):
         # the shared volume, so that its part of the setup can be read later.
         self.assertNotIn("/data", service.files)
         self.assertEqual(service.files["/logs"].persistent_key, constants.NODE_LOGS_VOLUME_KEY)
+
+
+    def test_flag_values_are_written_for_the_command_line(self):
+        plan, node, service, files = self.launch(
+            {"l1": {"node_config": {"p-chain-follow-only": True, "api-admin-enabled": False, "track-chains": ["a", "b"], "snow-sample-size": 5,
+                                    "acp-support": [], "tracing-headers": {"b": "2", "a": "1"}, "acp-object": [23, 24]}}},
+            name="l1-0-rpc-0", role="rpc", index=7, bootstrap_peer=BOOTSTRAP, l1=L1,
+        )
+        self.assertEqual(service.cmd[:2], ["--config-file=/config/node.json", "--public-ip=KURTOSIS_IP_ADDR_PLACEHOLDER"])
+        for arg in ("--p-chain-follow-only=true", "--api-admin-enabled=false", "--track-chains=a,b", "--snow-sample-size=5",
+                    "--tracing-headers=a=1,b=2", "--acp-object=23,24"):
+            self.assertIn(arg, service.cmd)
+        # An empty list means the default; AvalancheGo cannot parse `--acp-support=`.
+        self.assertFalse([arg for arg in service.cmd if arg.startswith("--acp-support")])
+        self.assertEqual(service.cmd[2:], sorted(service.cmd[2:]))
 
 
 class BootstrapSizingTest(unittest.TestCase):

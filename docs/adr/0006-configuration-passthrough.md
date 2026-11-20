@@ -1,6 +1,6 @@
 # 0006. Pass AvalancheGo options through unchanged and reject managed ones
 
-Status: Accepted
+Status: Accepted. The destination of node flags is superseded by [0014](0014-node-flags-on-the-command-line.md).
 
 ## Context
 
