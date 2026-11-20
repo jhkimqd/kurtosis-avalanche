@@ -68,6 +68,7 @@ def run(plan, args={}):
             "p_chain_rpc_url": primary.p_chain_rpc_url,
             "x_chain_rpc_url": primary.x_chain_rpc_url,
             "c_chain_rpc_url": primary.c_chain_rpc_url,
+            "c_chain_ws_url": primary.c_chain_ws_url,
             "c_chain_id": constants.C_CHAIN_ID,
         },
         "l1s": l1_manifests,

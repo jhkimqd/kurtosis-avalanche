@@ -32,7 +32,9 @@ def launch(plan, args, network, name, role, index, bootstrap_peer=None, l1=None)
         l1: struct(subnet_id, blockchain_id, config_artifact) of the L1 the
             node tracks, or None for a Primary Network validator.
     Returns:
-        struct(name, role, ip_address, rpc_url).
+        struct(name, role, ip_address, rpc_url, ws_url). `rpc_url` and
+        `ws_url` are the HTTP and WebSocket bases of the node's API; a chain
+        path such as `/ext/bc/C/rpc` or `/ext/bc/C/ws` extends them.
     """
     is_primary = role == constants.NODE_ROLE.primary
     is_bootstrap = role == constants.NODE_ROLE.bootstrap
@@ -145,6 +147,7 @@ def launch(plan, args, network, name, role, index, bootstrap_peer=None, l1=None)
         role=role,
         ip_address=service.ip_address,
         rpc_url="http://{}:{}".format(name, constants.NODE_HTTP_PORT_NUMBER),
+        ws_url="ws://{}:{}".format(name, constants.NODE_HTTP_PORT_NUMBER),
     )
 
 

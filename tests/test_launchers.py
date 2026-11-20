@@ -195,6 +195,9 @@ class DeploymentTest(unittest.TestCase):
         self.assertNotIn("bridge", l1)
         self.assertNotIn("staking_manager_address", l1)
         self.assertEqual(manifest["primary_network"]["c_chain_rpc_url"], "http://primary-0:9650/ext/bc/C/rpc")
+        # WebSocket endpoints, for subscriptions to new blocks and logs.
+        self.assertEqual(l1["ws_urls"], ["ws://l1-0-rpc-{}:9650/ext/bc/<blockchain_id>/ws".format(n) for n in (0, 1)])
+        self.assertEqual(manifest["primary_network"]["c_chain_ws_url"], "ws://primary-0:9650/ext/bc/C/ws")
         self.assertEqual(manifest["observability"], {})
         self.assertFalse([name for name, _ in plan.calls if name == "remove_service"])
 
