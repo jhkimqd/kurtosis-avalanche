@@ -136,6 +136,23 @@ class RepositoryDocsTest(unittest.TestCase):
             with self.subTest(component=component):
                 self.assertIn("| {} | {} |".format(component, version), readme)
 
+    def test_explorer_versions_agree(self):
+        # The explorer images have their own version comments in constants.star.
+        constants_text = (ROOT / "src/config/constants.star").read_text()
+        readme = (ROOT / "README.md").read_text()
+        example = (ROOT / "examples/pos.yml").read_text()
+        backend = re.search(r"# Blockscout (\d+\.\d+\.\d+), ", constants_text)[1]
+        frontend = re.search(r"# Blockscout frontend (v\d+\.\d+\.\d+), ", constants_text)[1]
+        postgres = re.search(r"# PostgreSQL (\d+\.\d+) \(Alpine\)", constants_text)[1]
+        self.assertIn("| Blockscout, with `explorer` | {}, frontend {} |".format(backend, frontend), readme)
+        self.assertIn("| PostgreSQL, with `explorer` | {} |".format(postgres), readme)
+        self.assertIn("#   blockscout: ghcr.io/blockscout/blockscout:{}\n".format(backend), example)
+        self.assertIn("#   blockscout_frontend: ghcr.io/blockscout/frontend:{}\n".format(frontend), example)
+        self.assertIn("#   postgres: postgres:{}-alpine\n".format(postgres), example)
+        explorer_doc = (ROOT / "docs/explorer.md").read_text()
+        self.assertIn("Blockscout {}".format(backend), explorer_doc)
+        self.assertIn("Blockscout frontend {}".format(frontend), explorer_doc)
+
     def test_pos_example_names_the_pinned_image_versions(self):
         # The `images` comment of the example shows each image with its tag.
         constants_text = (ROOT / "src/config/constants.star").read_text()

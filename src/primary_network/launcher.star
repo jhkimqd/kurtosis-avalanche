@@ -19,6 +19,7 @@ def launch(plan, args, network):
         bootstrap_peer: struct(node_id, ip_address) that later nodes sync from.
         rpc_url: base URL of the first validator; the API paths below extend it.
         p_chain_rpc_url, x_chain_rpc_url, c_chain_rpc_url: chain API endpoints.
+        c_chain_ws_url: WebSocket endpoint of the C-Chain, for subscriptions.
     """
     nodes = []
     bootstrap_peer = None
@@ -68,6 +69,7 @@ def launch(plan, args, network):
         p_chain_rpc_url=rpc_url + "/ext/bc/P",
         x_chain_rpc_url=rpc_url + "/ext/bc/X",
         c_chain_rpc_url=rpc_url + "/ext/bc/C/rpc",
+        c_chain_ws_url=nodes[0].ws_url + "/ext/bc/C/ws",
     )
 
 

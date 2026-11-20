@@ -125,7 +125,7 @@ def check(args):
     if l1["validator_management"] not in modes:
         fail("l1.validator_management must be one of {}".format(modes))
 
-    for key in ["bridge", "metrics", "logs", "dashboards"]:
+    for key in ["bridge", "metrics", "logs", "dashboards", "explorer"]:
         if type(args[key]) != "bool":
             fail("{} must be a boolean".format(key))
     # Grafana shows what Prometheus and Loki store. With neither it is empty.
@@ -154,6 +154,70 @@ def check(args):
         fail("l1.subnet_config.validatorOnly is not supported; it must stay false")
 
     _check_genesis(l1["genesis"], args["bridge"])
+    _check_explorer(args)
+
+
+def _check_explorer(args):
+    """Rejects explorer arguments that would fail or make it miss data."""
+    if not args["explorer"]:
+        return
+    # One explorer per chain, two host ports each (src/explorer/launcher.star).
+    explorer_count = 1 + args["l1"]["count"]
+    port = args["explorer_port"]
+    high = 65536 - 2 * explorer_count
+    if type(port) != "int" or port < 1024 or port > high:
+        fail(
+            "explorer_port must be an integer in [1024, {}]: the {} explorers take {} host ports from it".format(
+                high, explorer_count, 2 * explorer_count
+            )
+        )
+
+    # The explorer reads old state and replays old transactions.
+    for config, label in [
+        (args["primary_network"]["c_chain_config"], "primary_network.c_chain_config"),
+        (args["l1"]["chain_config"], "l1.chain_config"),
+    ]:
+        if config.get("pruning-enabled", False) != False:
+            fail(
+                "{}.pruning-enabled must stay false with explorer: true; the explorer reads the state of old blocks".format(
+                    label
+                )
+            )
+
+    # The explorer needs the `debug_trace*` methods on every chain. On the
+    # C-Chain, `apis` selects them as "trace". The deprecated `eth-apis`
+    # applies only without `apis`; there "debug-tracer" and
+    # "debug-file-tracer" both select "trace" (vms/saevm/cchain/deprecated.go).
+    c_chain = args["primary_network"]["c_chain_config"]
+    if "apis" in c_chain:
+        _check_api_list(
+            c_chain["apis"], ["trace"], "primary_network.c_chain_config.apis"
+        )
+    elif "eth-apis" in c_chain:
+        _check_api_list(
+            c_chain["eth-apis"],
+            ["debug-tracer", "debug-file-tracer"],
+            "primary_network.c_chain_config.eth-apis",
+        )
+    # Subnet-EVM serves `debug_trace*` only with "debug-tracer".
+    if "eth-apis" in args["l1"]["chain_config"]:
+        _check_api_list(
+            args["l1"]["chain_config"]["eth-apis"],
+            ["debug-tracer"],
+            "l1.chain_config.eth-apis",
+        )
+
+
+def _check_api_list(apis, tracers, label):
+    """Fails unless `apis` is a list of names that holds one of `tracers`."""
+    if type(apis) != "list" or [name for name in apis if type(name) != "string"]:
+        fail("{} must be a list of API names".format(label))
+    if not [name for name in apis if name in tracers]:
+        fail(
+            '{} must include "{}" with explorer: true; the explorer traces every transaction'.format(
+                label, tracers[0]
+            )
+        )
 
 
 def _check_ranges(args, ranges, label):

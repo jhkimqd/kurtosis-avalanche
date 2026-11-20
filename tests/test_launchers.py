@@ -11,6 +11,7 @@ input_parser = starlark.load("src/config/input_parser.star")
 l1_launcher = starlark.load("src/l1/launcher.star")
 node_launcher = starlark.load("src/node/launcher.star")
 primary_network_launcher = starlark.load("src/primary_network/launcher.star")
+explorer_launcher = starlark.load("src/explorer/launcher.star")
 main = starlark.load("main.star")
 
 NETWORK = starlark.SimpleNamespace(artifact="network", bootstrap_node_id="NodeID-0")
@@ -195,6 +196,9 @@ class DeploymentTest(unittest.TestCase):
         self.assertNotIn("bridge", l1)
         self.assertNotIn("staking_manager_address", l1)
         self.assertEqual(manifest["primary_network"]["c_chain_rpc_url"], "http://primary-0:9650/ext/bc/C/rpc")
+        # WebSocket endpoints, for subscriptions to new blocks and logs.
+        self.assertEqual(l1["ws_urls"], ["ws://l1-0-rpc-{}:9650/ext/bc/<blockchain_id>/ws".format(n) for n in (0, 1)])
+        self.assertEqual(manifest["primary_network"]["c_chain_ws_url"], "ws://primary-0:9650/ext/bc/C/ws")
         self.assertEqual(manifest["observability"], {})
         self.assertFalse([name for name, _ in plan.calls if name == "remove_service"])
 
@@ -293,6 +297,128 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual([command[5] for command in self.by_name(commands, "create")], ["77777", "77778"])
         self.assertEqual([l1["name"] for l1 in manifest["l1s"]], ["l1-0", "l1-1"])
         self.assertIn("l1-1-rpc-0", plan.services())
+
+
+class ExplorerTest(unittest.TestCase):
+    ARGS = {
+        "primary_network": {"validator_count": 2},
+        "l1": {"count": 2, "validator_management": "poa", "validator_count": 1},
+        "bridge": False,
+        "metrics": False,
+        "logs": False,
+        "dashboards": False,
+        "explorer": True,
+        "explorer_port": 30000,
+    }
+
+    def run_package(self, args):
+        plan = starlark.FakePlan()
+        return plan, main.run(plan, args)
+
+    def test_one_explorer_per_evm_chain(self):
+        plan, manifest = self.run_package(self.ARGS)
+        services = plan.services()
+        names = list(services)
+        explorers = ["explorer-db", "c-chain-explorer-api", "c-chain-explorer",
+                     "l1-0-explorer-api", "l1-0-explorer", "l1-1-explorer-api", "l1-1-explorer"]
+        # The explorers start after every L1, in this order.
+        self.assertEqual(names[-len(explorers):], explorers)
+        self.assertEqual(
+            manifest["explorers"],
+            [
+                {"chain": "c-chain", "evm_chain_id": 88888,
+                 "url": "http://localhost:30000", "api_url": "http://localhost:30001/api/v2"},
+                {"chain": "l1-0", "evm_chain_id": 77777,
+                 "url": "http://localhost:30002", "api_url": "http://localhost:30003/api/v2"},
+                {"chain": "l1-1", "evm_chain_id": 77778,
+                 "url": "http://localhost:30004", "api_url": "http://localhost:30005/api/v2"},
+            ],
+        )
+        # Each explorer reads its own chain from the first RPC node, and keeps
+        # its own database.
+        expected = {
+            "c-chain": ("primary-0", "C", 88888, "AVAX"),
+            "l1-0": ("l1-0-rpc-0", "<blockchain_id>", 77777, "TOKEN"),
+            "l1-1": ("l1-1-rpc-0", "<blockchain_id>", 77778, "TOKEN"),
+        }
+        databases = set()
+        for index, (chain, (node, chain_path, chain_id, coin)) in enumerate(expected.items()):
+            api = services[chain + "-explorer-api"]
+            web = services[chain + "-explorer"]
+            env = api.env_vars
+            with self.subTest(chain=chain):
+                self.assertEqual(api.image, constants.IMAGES["blockscout"])
+                self.assertEqual(web.image, constants.IMAGES["blockscout_frontend"])
+                self.assertEqual(env["ETHEREUM_JSONRPC_HTTP_URL"], "http://{}:9650/ext/bc/{}/rpc".format(node, chain_path))
+                self.assertEqual(env["ETHEREUM_JSONRPC_TRACE_URL"], env["ETHEREUM_JSONRPC_HTTP_URL"])
+                self.assertEqual(env["ETHEREUM_JSONRPC_WS_URL"], "ws://{}:9650/ext/bc/{}/ws".format(node, chain_path))
+                self.assertEqual(env["ETHEREUM_JSONRPC_VARIANT"], "geth")
+                self.assertEqual(env["CHAIN_ID"], str(chain_id))
+                self.assertEqual(env["COIN"], coin)
+                self.assertTrue(env["DATABASE_URL"].startswith("postgresql://blockscout:blockscout@explorer-db:5432/"))
+                databases.add(env["DATABASE_URL"])
+                self.assertGreaterEqual(len(env["SECRET_KEY_BASE"]), 64)
+                # `finished_indexing` tolerates no untraced block after genesis.
+                self.assertEqual(env["API_INTERNAL_TRANSACTIONS_INDEXING_FINISHED_THRESHOLD"], "1")
+                self.assertEqual(env["TRACE_FIRST_BLOCK"], "1")
+                # The browser reaches the web app and the API on fixed host ports.
+                self.assertEqual(web.public_ports["http"].number, 30000 + 2 * index)
+                self.assertEqual(api.public_ports["http"].number, 30001 + 2 * index)
+                self.assertEqual(web.env_vars["NEXT_PUBLIC_APP_PORT"], str(30000 + 2 * index))
+                self.assertEqual(web.env_vars["NEXT_PUBLIC_API_PORT"], str(30001 + 2 * index))
+                self.assertEqual(web.env_vars["NEXT_PUBLIC_API_HOST"], "localhost")
+                self.assertEqual(web.env_vars["NEXT_PUBLIC_NETWORK_ID"], str(chain_id))
+                self.assertNotIn("NEXT_PUBLIC_USE_NEXT_JS_PROXY", web.env_vars)
+                # Features that show wrong data on Avalanche are off.
+                self.assertEqual(web.env_vars["NEXT_PUBLIC_GAS_TRACKER_ENABLED"], "false")
+                self.assertEqual(web.env_vars["NEXT_PUBLIC_ADVANCED_FILTER_ENABLED"], "false")
+                self.assertEqual(json.loads(web.env_vars["NEXT_PUBLIC_VIEWS_BLOCK_HIDDEN_FIELDS"]), ["miner", "total_reward"])
+                # Nothing loads from the internet: no REST spec from GitHub, no
+                # Google Fonts, no IPFS gateway.
+                self.assertNotIn("rest_api", json.loads(web.env_vars["NEXT_PUBLIC_API_DOCS_TABS"]))
+                self.assertEqual(web.env_vars["NEXT_PUBLIC_HELIA_VERIFIED_FETCH_ENABLED"], "false")
+                for key in ("NEXT_PUBLIC_FONT_FAMILY_HEADING", "NEXT_PUBLIC_FONT_FAMILY_BODY"):
+                    font = json.loads(web.env_vars[key])
+                    self.assertEqual(font["url"], "http://localhost:{}/devnet/fonts.css".format(30000 + 2 * index))
+                self.assertEqual(web.files["/app/public/devnet"], "explorer-fonts")
+                self.assertEqual(env["MICROSERVICE_SC_VERIFIER_ENABLED"], "false")
+                self.assertEqual(env["DISABLE_MARKET"], "true")
+                # Idle schedulers sleep instead of spinning.
+                self.assertIn("+sbwt none", env["ERL_FLAGS"])
+        self.assertEqual(len(databases), 3)
+        # PostgreSQL accepts the connections of every explorer.
+        db = services["explorer-db"]
+        self.assertIn("max_connections={}".format(3 * explorer_launcher.CONNECTIONS_PER_EXPLORER + 20), db.cmd)
+        self.assertEqual(db.max_memory, constants.EXPLORER_DB_BASE_MEMORY + 3 * constants.EXPLORER_DB_CHAIN_MEMORY)
+        # The deployment waits until each explorer has indexed blocks and
+        # internal transactions; an empty index does not count.
+        waits = [kwargs for name, kwargs in plan.calls if name == "wait" and kwargs["service_name"].endswith("-explorer-api")]
+        self.assertEqual(
+            [(wait["service_name"], wait["recipe"].endpoint) for wait in waits],
+            [(chain + "-explorer-api", endpoint) for chain in expected
+             for endpoint in ("/api/v2/main-page/blocks", "/api/v2/main-page/indexing-status")],
+        )
+        for wait in waits[1::2]:
+            self.assertIn(".finished_indexing", wait["recipe"].extract["done"])
+            self.assertEqual((wait["assertion"], wait["target_value"]), ("==", True))
+        # The L1 nodes trace and keep every state; `lab create` writes that
+        # chain config for every node of the L1.
+        chain_config = json.loads(self.by_name(plan, "create")[0][8])
+        self.assertIn("debug-tracer", chain_config["eth-apis"])
+        self.assertFalse(chain_config["pruning-enabled"])
+        self.assertFalse(plan.rendered("primary-0-config")["chains/C/config.json"]["pruning-enabled"])
+
+    def test_the_bridge_names_the_l1_token(self):
+        plan, manifest = self.run_package(dict(self.ARGS, bridge=True))
+        self.assertEqual(plan.services()["l1-0-explorer-api"].env_vars["COIN"], "CASH")
+
+    def test_no_explorer_by_default(self):
+        plan, manifest = self.run_package(dict(self.ARGS, explorer=False))
+        self.assertFalse([name for name in plan.services() if "explorer" in name])
+        self.assertEqual(manifest["explorers"], [])
+
+    def by_name(self, plan, name):
+        return [command for command in plan.commands() if command[:2] == ["lab", name]]
 
 
 class ObservabilityTest(unittest.TestCase):

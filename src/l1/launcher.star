@@ -29,8 +29,8 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
         l1_index: number of this L1, starting at 0.
         first_node_index: first generated node identity reserved for this L1.
     Returns:
-        struct(manifest): a dict of the L1's IDs, contract addresses, and RPC
-        URLs.
+        struct(manifest): a dict of the L1's IDs, contract addresses, and the
+        RPC and WebSocket URLs of its RPC nodes.
     """
     l1_args = args["l1"]
     name = generate_name(l1_index)
@@ -119,6 +119,9 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
     rpc_urls = [
         "{}/ext/bc/{}/rpc".format(node.rpc_url, l1.blockchain_id) for node in rpc_nodes
     ]
+    ws_urls = [
+        "{}/ext/bc/{}/ws".format(node.ws_url, l1.blockchain_id) for node in rpc_nodes
+    ]
     rpc_url = rpc_urls[0]
 
     # 3. Convert the subnet to an L1. The chain produces blocks from here on.
@@ -156,6 +159,7 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
         "blockchain_id": l1.blockchain_id,
         "evm_chain_id": evm_chain_id,
         "rpc_urls": rpc_urls,
+        "ws_urls": ws_urls,
         "validator_management": mode,
         "validator_manager_address": constants.VALIDATOR_MANAGER_ADDRESS,
     }

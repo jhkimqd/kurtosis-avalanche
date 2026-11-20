@@ -87,6 +87,7 @@ for _kind in (
     "Directory",
     "ExecRecipe",
     "PostHttpRequestRecipe",
+    "GetHttpRequestRecipe",
     "ImageBuildSpec",
     "User",
 ):
