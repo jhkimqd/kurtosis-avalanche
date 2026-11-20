@@ -46,9 +46,11 @@ The ValidatorManager lets the validator set change by at most 20% of its total w
 
 With `bridge: true`, the package connects the C-Chain and the L1 with Avalanche ICM:
 
-1. `lab bridge-deploy` deploys a `TeleporterMessenger` and a `TeleporterRegistry` on both chains. On the C-Chain it deploys the `CashToken` (CASH) and an `ERC20TokenHome`. On the L1 it deploys a `NativeTokenRemote`, which the L1 genesis allows to mint the native token.
+1. `lab bridge-deploy` deploys a `TeleporterMessenger` and a `TeleporterRegistry` on both chains. On the C-Chain it deploys the `CashToken` (CASH) and an `ERC20TokenHome`. On the L1 it deploys a `NativeTokenRemote`, which the L1 genesis allows to mint the native token. All L1s share one `CashToken` and one `ERC20TokenHome`, so tokens can move from one L1 to another through the home (a multi-hop transfer).
 2. The `l1-<i>-relayer` service starts. It delivers the messages between the two chains.
 3. `lab bridge-activate` registers the L1 side with the C-Chain side, and locks CASH on the C-Chain as collateral for the native tokens that the L1 genesis created.
+
+   The collateral does not make the genesis tokens redeemable. The `ERC20TokenHome` releases to a remote's senders at most the amount that was bridged to that remote (`getTransferredBalance`). A larger send from the L1 burns the native tokens on the L1, and its message then fails on the C-Chain (`MessageExecutionFailed` in the `TeleporterMessenger`). Teleporter keeps the failed message, so `retryMessageExecution` can deliver it once the balance allows.
 4. `lab bridge-smoke` sends 7 CASH from the C-Chain to a new account on the L1 and spends them there as gas.
 
 ## Check a running devnet

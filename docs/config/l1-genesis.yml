@@ -113,13 +113,11 @@ l1:
       # (0x0200000000000000000000000000000000000005). Always on: validator
       # management and the bridge send and verify Warp messages.
 
-      # Gas price manager (0x0200000000000000000000000000000000000006), new in
-      # v1.15.0: stores a gas price config that allowed addresses can change.
-      # The package does not use or test it. See
-      # graft/subnet-evm/precompile/contracts/gaspricemanager in AvalancheGo.
-      #gasPriceManagerConfig:
-      #  blockTimestamp: 0
-      #  adminAddresses: ["0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"]
+      # gasPriceManagerConfig (not available): the gas price manager
+      # (0x0200000000000000000000000000000000000006) is in the v1.15.0 source but
+      # not registered (graft/subnet-evm/precompile/registry/registry.go). A
+      # genesis that names it starts normally and the key has no effect: no
+      # contract exists at the address.
 
     # ── First state ─────────────────────────────────────────────────────────
 
