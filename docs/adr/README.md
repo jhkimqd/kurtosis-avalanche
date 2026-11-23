@@ -19,6 +19,7 @@ An ADR records one decision that shapes this package: the situation, the choice,
 | [0013](0013-observability-stack.md) | Collect metrics and logs with Alloy, and show them in Grafana |
 | [0014](0014-block-explorer.md) | Add an optional Blockscout explorer for each EVM chain, pinned to its newest public GPL images |
 | [0015](0015-fixed-rpc-host-ports.md) | Publish the first node of each chain on a fixed host port |
+| [0016](0016-network-description-script.md) | Describe each network in the tools service with a shell script |
 
 ## Add an ADR
 

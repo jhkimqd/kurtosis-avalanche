@@ -126,11 +126,11 @@ check "validators on the P-Chain" \
     "$(api primary-0 /ext/bc/P platform.getCurrentValidators '{}' | jq '.validators | length')" "$primary_count"
 height=$(api primary-0 /ext/bc/P platform.getHeight '{}' | jq -r '.height // empty')
 if [[ $height =~ ^[0-9]+$ ]]; then pass "P-Chain height: $height"; else fail "the P-Chain reports no height"; fi
-# The description lists every blockchain that the P-Chain knows, plus the
-# P-Chain itself, which platform.getBlockchains does not list.
+# The description in the tools service holds one directory per network. Its
+# chains are those that the P-Chain lists, plus the P-Chain itself.
 if kurtosis files download "$enclave" network-description "$work/description" >/dev/null 2>&1; then
-    check "blockchains in /opt/networks/chains.json" \
-        "$(jq -r '[.[].blockchain_id] | sort | join(" ")' "$work/description/chains.json" 2>/dev/null || true)" \
+    check "blockchains in /opt/networks/*/network.json" \
+        "$(jq -rs '[.[] | (.chains // [.])[] | .blockchain_id] | sort | join(" ")' "$work"/description/*/network.json 2>/dev/null || true)" \
         "$(api primary-0 /ext/bc/P platform.getBlockchains '{}' |
             jq -r '[.blockchains[].id, "11111111111111111111111111111111LpoYY"] | sort | join(" ")' 2>/dev/null || true)"
 else

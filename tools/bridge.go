@@ -35,12 +35,6 @@ func devKey(index int) *ecdsa.PrivateKey {
 	return key
 }
 
-// bridgeRelayerKey returns the key of the relayer of one L1's bridge. It
-// derives from the blockchain ID, so each L1 has its own relayer account.
-func bridgeRelayerKey(blockchainID string) (*ecdsa.PrivateKey, error) {
-	return crypto.ToECDSA(crypto.Keccak256([]byte("kurtosis-devnet-relayer:" + blockchainID)))
-}
-
 // units returns n tokens in wei.
 func units(n int64) *big.Int { return new(big.Int).Mul(big.NewInt(n), big.NewInt(1e18)) }
 
@@ -205,7 +199,7 @@ func deployBridge(ctx context.Context, uri, url, dir, path string) error {
 	cDir := "/state/c-chain"
 	td := crypto.PubkeyToAddress(devKey(9).PublicKey)
 	rd := crypto.PubkeyToAddress(devKey(10).PublicKey)
-	relayKey, e := bridgeRelayerKey(chain.Chain)
+	relayKey, e := crypto.ToECDSA(crypto.Keccak256([]byte("kurtosis-devnet-relayer:" + chain.Chain)))
 	if e != nil {
 		return e
 	}

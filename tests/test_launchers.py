@@ -189,13 +189,14 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(convert[4:], ["self", constants.VALIDATOR_MANAGER_ADDRESS, "/state/network", "1000000", "2", "3"])
         self.assertEqual(
             [command[1] for command in commands],
-            ["prepare", "create", "convert", "wait", "manager", "run", "wait", "wait", "verify-rpcs", "describe"],
+            ["prepare", "create", "convert", "wait", "manager", "run", "wait", "wait", "verify-rpcs"],
         )
-        # The last command describes the devnet in the tools service, from the
-        # manifest, and the package publishes the same files as an artifact.
-        describe = self.by_name(commands, "describe")[0]
-        self.assertEqual(describe[2:4], ["http://primary-0:9650", "/opt/networks"])
-        self.assertEqual(json.loads(describe[4])["l1s"][0]["name"], "l1-0")
+        # The last command describes each network in the tools service with a
+        # shell script, from the manifest. The package publishes the same files.
+        describe = plan.commands()[-1]
+        self.assertEqual(describe[:3], ["bash", "/fixtures/scripts/describe-networks.sh", "/opt/networks"])
+        self.assertEqual(json.loads(describe[3])["l1s"][0]["name"], "l1-0")
+        self.assertTrue((starlark.ROOT / "static_files/scripts/describe-networks.sh").is_file())
         self.assertIn(
             {"name": "network-description", "service_name": "tools", "src": "/opt/networks"},
             [kwargs for name, kwargs in plan.calls if name == "store_service_files"],
@@ -272,7 +273,7 @@ class DeploymentTest(unittest.TestCase):
             [command[1] for command in commands],
             ["prepare", "create", "convert", "wait", "manager", "bridge-deploy", "bridge-activate"]
             + ["migrate"] * 5
-            + ["finalize-pos", "bridge-smoke", "run", "wait", "verify-rpcs", "describe"],
+            + ["finalize-pos", "bridge-smoke", "run", "wait", "verify-rpcs"],
         )
         # Each validator stakes only after its own node has started.
         order = [

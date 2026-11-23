@@ -107,7 +107,7 @@ def run(plan, args={}):
             )
         },
     )
-    tools.describe(plan, primary.rpc_url, manifest)
+    tools.describe(plan, manifest)
     plan.store_service_files(
         name="deployment-state", service_name=tools.SERVICE_NAME, src=tools.STATE_PATH
     )

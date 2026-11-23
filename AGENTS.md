@@ -53,9 +53,9 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | `src/l1/signature_aggregator.star`, `src/l1/bridge.star` | Per-L1 support services. |
 | `src/observability/launcher.star` | The observability stack. One file per service: `alloy.star` (collector), `prometheus.star` (metrics store), `loki.star` (log store), `grafana.star` (dashboards). |
 | `src/explorer/launcher.star` | The optional Blockscout explorers and their PostgreSQL database. |
-| `src/tools/launcher.star` | The tools service, the helpers that run `lab` in it, and the description of the devnet in `/opt/networks`. |
+| `src/tools/launcher.star` | The tools service, the helpers that run `lab` in it, and the run of `describe-networks.sh`. |
 | `tools/` | Go program `lab`: keys, genesis, transactions, checks. One file per concern; `main.go` lists the commands. |
-| `static_files/` | Base L1 genesis, the contract artifacts (`static_files/contracts/hashes.json` pins them), the Alloy pipelines (`static_files/observability/alloy/`), and the generated Grafana dashboards (`static_files/observability/grafana/dashboards/`). |
+| `static_files/` | Base L1 genesis, the shell scripts that run in the tools service (`static_files/scripts/`), the contract artifacts (`static_files/contracts/hashes.json` pins them), the Alloy pipelines (`static_files/observability/alloy/`), and the generated Grafana dashboards (`static_files/observability/grafana/dashboards/`). |
 | `contracts/` | Sources of the two test tokens, the nightly message receiver, and the reproducible artifact build. |
 | `examples/` | The two documented networks: `poa.yml`, `pos.yml`. |
 | `.github/configs/` | Arguments files for CI coverage only. |
@@ -97,7 +97,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | EWOQ private key | `0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027` (public; devnet only) |
 | ValidatorManager on every L1 | `0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25` |
 | RPC on the host (`rpc_port`) | P-, X-, C-Chain at http://127.0.0.1:29650 (`/ext/bc/C/rpc`), L1 `n` at port `29651 + n` (`/ext/bc/<blockchain-id>/rpc`) |
-| Devnet description | `/opt/networks` in the `tools` service, also the artifact `network-description`: chains, URLs, `platform.getBlockchains`, development accounts |
+| Devnet description | `/opt/networks/<network>/` in the `tools` service (`primary-network`, `l1-<i>`), also the artifact `network-description`; written by `static_files/scripts/describe-networks.sh` |
 | Grafana | `kurtosis port print <enclave> grafana http`; no login to look, `admin` / `admin` to edit |
 | Explorers (`explorer: true`) | C-Chain at http://localhost:28000, L1 `n` at port `28000 + 2 × (n + 1)`; API on the next port |
 

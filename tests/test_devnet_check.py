@@ -34,8 +34,9 @@ if name == 'kurtosis':
         target = Path(args[-1])
         target.mkdir(parents=True)
         if args[3] == 'network-description':
-            (target / 'chains.json').write_text(json.dumps([
-                {'blockchain_id': '11111111111111111111111111111111LpoYY'}, {'blockchain_id': 'C'}, {'blockchain_id': 'X'}]))
+            (target / 'primary-network').mkdir()
+            (target / 'primary-network' / 'network.json').write_text(json.dumps({'chains': [
+                {'blockchain_id': '11111111111111111111111111111111LpoYY'}, {'blockchain_id': 'C'}, {'blockchain_id': 'X'}]}))
         else:
             (target / 'deployment.json').write_text((state / 'manifest.json').read_text())
     elif args[:2] == ['port', 'print']:
@@ -121,7 +122,7 @@ class DevnetCheckTest(unittest.TestCase):
         result, calls = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("ok    chain ID: 88888", result.stdout)
-        self.assertIn("ok    blockchains in /opt/networks/chains.json", result.stdout)
+        self.assertIn("ok    blockchains in /opt/networks/*/network.json", result.stdout)
         self.assertIn("Pulling Foundry image", result.stderr)
         self.assertLess(calls.index("docker pull "), calls.index("docker run "))
 
