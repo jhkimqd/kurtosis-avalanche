@@ -2,7 +2,9 @@
 
 The package runs `lab` commands in this service to generate node identities,
 sign transactions, and verify the result. `lab` records each step under /state,
-so the directory holds the complete history of a deployment.
+so the directory holds the complete history of a deployment. At the end, `lab`
+describes the devnet in /opt/networks: the chains, their URLs, and the
+development accounts.
 """
 
 constants = import_module("../config/constants.star")
@@ -13,6 +15,9 @@ SERVICE_NAME = "tools"
 STATE_PATH = "/state"
 # Genesis, upgrade schedule, and node keys (written by `lab prepare`).
 NETWORK_PATH = STATE_PATH + "/network"
+# Description of the devnet for its users: the chains, their URLs, and the
+# development accounts (written by `lab describe`, see tools/describe.go).
+DESCRIPTION_PATH = "/opt/networks"
 # The files of ./static_files. The tools read the base L1 genesis and the
 # contract artifacts; the observability files in it are for other services.
 STATIC_FILES_PATH = "/fixtures"
@@ -94,3 +99,24 @@ def generate_network(plan, node_count, primary_validator_count):
     )
     node = read_json(plan, NETWORK_PATH + "/network.json", {"id": ".nodes[0].node_id"})
     return struct(artifact=artifact, bootstrap_node_id=node["id"])
+
+
+def describe(plan, primary_rpc_url, manifest):
+    """Writes the description of the devnet to `DESCRIPTION_PATH`.
+
+    Args:
+        primary_rpc_url: base URL of a Primary Network validator.
+        manifest: the deployment manifest (main.star).
+    Returns:
+        The files artifact `network-description` with the same files.
+    """
+    run(
+        plan,
+        "Describing the chains, URLs, and accounts of the devnet in {}".format(
+            DESCRIPTION_PATH
+        ),
+        ["lab", "describe", primary_rpc_url, DESCRIPTION_PATH, json.encode(manifest)],
+    )
+    return plan.store_service_files(
+        name="network-description", service_name=SERVICE_NAME, src=DESCRIPTION_PATH
+    )

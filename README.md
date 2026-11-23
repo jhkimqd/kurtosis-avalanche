@@ -159,6 +159,13 @@ With the default `rpc_port: 29650`, the first node of each chain answers on a fi
 
 A WebSocket URL replaces `http` with `ws` and `/rpc` with `/ws`. Every other node gets a random port: `kurtosis enclave inspect avalanche` lists them, and `kurtosis port print avalanche <service> rpc` prints one. Add the paths above to it.
 
+The tools service describes the devnet in `/opt/networks`: every chain with its IDs and URLs (`chains.json`), the answers of `platform.getBlockchains` and `platform.getSubnet`, the development accounts with their keys and roles (`accounts.json`), and the deployment output. Its `README.md` sums them up:
+
+```sh
+kurtosis service exec avalanche tools 'cat /opt/networks/README.md'
+kurtosis files download avalanche network-description ./network   # the same files
+```
+
 The Avalanche network ID is `88888`. The public development account, EWOQ, is funded on every chain:
 
 | Account field | Value |

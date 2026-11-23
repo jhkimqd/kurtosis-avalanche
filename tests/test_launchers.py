@@ -189,7 +189,16 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(convert[4:], ["self", constants.VALIDATOR_MANAGER_ADDRESS, "/state/network", "1000000", "2", "3"])
         self.assertEqual(
             [command[1] for command in commands],
-            ["prepare", "create", "convert", "wait", "manager", "run", "wait", "wait", "verify-rpcs"],
+            ["prepare", "create", "convert", "wait", "manager", "run", "wait", "wait", "verify-rpcs", "describe"],
+        )
+        # The last command describes the devnet in the tools service, from the
+        # manifest, and the package publishes the same files as an artifact.
+        describe = self.by_name(commands, "describe")[0]
+        self.assertEqual(describe[2:4], ["http://primary-0:9650", "/opt/networks"])
+        self.assertEqual(json.loads(describe[4])["l1s"][0]["name"], "l1-0")
+        self.assertIn(
+            {"name": "network-description", "service_name": "tools", "src": "/opt/networks"},
+            [kwargs for name, kwargs in plan.calls if name == "store_service_files"],
         )
         l1 = manifest["l1s"][0]
         self.assertEqual(l1["rpc_urls"][1], "http://l1-0-rpc-1:9650/ext/bc/<blockchain_id>/rpc")
@@ -263,7 +272,7 @@ class DeploymentTest(unittest.TestCase):
             [command[1] for command in commands],
             ["prepare", "create", "convert", "wait", "manager", "bridge-deploy", "bridge-activate"]
             + ["migrate"] * 5
-            + ["finalize-pos", "bridge-smoke", "run", "wait", "verify-rpcs"],
+            + ["finalize-pos", "bridge-smoke", "run", "wait", "verify-rpcs", "describe"],
         )
         # Each validator stakes only after its own node has started.
         order = [

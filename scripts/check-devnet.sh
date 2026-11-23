@@ -4,7 +4,8 @@
 # The package already tests each network that it deploys. This script repeats
 # the important checks with independent tools, at any later time:
 #
-#   1. The Primary Network: network ID, bootstrapped chains, validators.
+#   1. The Primary Network: network ID, bootstrapped chains, validators, and
+#      the description of the devnet in /opt/networks of the tools service.
 #   2. Each L1 on the P-Chain: converted to an L1, validators registered.
 #   3. Each L1's contracts: the ValidatorManager and who owns it.
 #   4. Transactions on the C-Chain and on each L1: a transfer from the funded
@@ -125,6 +126,16 @@ check "validators on the P-Chain" \
     "$(api primary-0 /ext/bc/P platform.getCurrentValidators '{}' | jq '.validators | length')" "$primary_count"
 height=$(api primary-0 /ext/bc/P platform.getHeight '{}' | jq -r '.height // empty')
 if [[ $height =~ ^[0-9]+$ ]]; then pass "P-Chain height: $height"; else fail "the P-Chain reports no height"; fi
+# The description lists every blockchain that the P-Chain knows, plus the
+# P-Chain itself, which platform.getBlockchains does not list.
+if kurtosis files download "$enclave" network-description "$work/description" >/dev/null 2>&1; then
+    check "blockchains in /opt/networks/chains.json" \
+        "$(jq -r '[.[].blockchain_id] | sort | join(" ")' "$work/description/chains.json" 2>/dev/null || true)" \
+        "$(api primary-0 /ext/bc/P platform.getBlockchains '{}' |
+            jq -r '[.blockchains[].id, "11111111111111111111111111111111LpoYY"] | sort | join(" ")' 2>/dev/null || true)"
+else
+    fail "the enclave has no network-description artifact"
+fi
 balance=$(api primary-0 /ext/bc/X avm.getBalance '{"address":"X-custom18jma8ppw3nhx5r4ap8clazz0dps7rv5u9xde7p","assetID":"AVAX"}' | jq -r '.balance // empty')
 if [[ $balance =~ ^[1-9][0-9]*$ ]]; then pass "X-Chain balance of the EWOQ account: $balance nAVAX"; else fail "the EWOQ account has no X-Chain balance"; fi
 

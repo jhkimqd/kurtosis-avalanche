@@ -33,7 +33,11 @@ if name == 'kurtosis':
     if args[:2] == ['files', 'download']:
         target = Path(args[-1])
         target.mkdir(parents=True)
-        (target / 'deployment.json').write_text((state / 'manifest.json').read_text())
+        if args[3] == 'network-description':
+            (target / 'chains.json').write_text(json.dumps([
+                {'blockchain_id': '11111111111111111111111111111111LpoYY'}, {'blockchain_id': 'C'}, {'blockchain_id': 'X'}]))
+        else:
+            (target / 'deployment.json').write_text((state / 'manifest.json').read_text())
     elif args[:2] == ['port', 'print']:
         print('http://127.0.0.1:9650')
     else:
@@ -46,6 +50,7 @@ elif name == 'curl':
         'platform.getCurrentValidators': {'validators': [{}, {}]},
         'platform.getHeight': {'height': 1},
         'avm.getBalance': {'balance': 1},
+        'platform.getBlockchains': {'blockchains': [{'id': 'X'}, {'id': 'C'}]},
     }[method]
     print(json.dumps({'result': result}))
 elif name == 'docker':
@@ -116,6 +121,7 @@ class DevnetCheckTest(unittest.TestCase):
         result, calls = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("ok    chain ID: 88888", result.stdout)
+        self.assertIn("ok    blockchains in /opt/networks/chains.json", result.stdout)
         self.assertIn("Pulling Foundry image", result.stderr)
         self.assertLess(calls.index("docker pull "), calls.index("docker run "))
 
