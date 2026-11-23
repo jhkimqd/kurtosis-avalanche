@@ -67,17 +67,22 @@ def run(plan, args={}):
     if args["explorer"]:
         explorers = explorer_launcher.launch(plan, args, primary, l1_manifests)
 
-    # 6. Publish the result: the manifest, and a snapshot of the tools state.
+    # 6. Publish the result: the manifest, a description of the devnet in the
+    #    tools service, and a snapshot of the tools state.
+    primary_manifest = {
+        "network_id": constants.NETWORK_ID,
+        "rpc_url": primary.rpc_url,
+        "p_chain_rpc_url": primary.p_chain_rpc_url,
+        "x_chain_rpc_url": primary.x_chain_rpc_url,
+        "c_chain_rpc_url": primary.c_chain_rpc_url,
+        "c_chain_ws_url": primary.c_chain_ws_url,
+        "c_chain_id": constants.C_CHAIN_ID,
+    }
+    # The same URLs on this machine, through the fixed port of `rpc_port`.
+    if primary.host:
+        primary_manifest["host"] = primary.host
     manifest = {
-        "primary_network": {
-            "network_id": constants.NETWORK_ID,
-            "rpc_url": primary.rpc_url,
-            "p_chain_rpc_url": primary.p_chain_rpc_url,
-            "x_chain_rpc_url": primary.x_chain_rpc_url,
-            "c_chain_rpc_url": primary.c_chain_rpc_url,
-            "c_chain_ws_url": primary.c_chain_ws_url,
-            "c_chain_id": constants.C_CHAIN_ID,
-        },
+        "primary_network": primary_manifest,
         "l1s": l1_manifests,
         # URL of each observability service that runs.
         "observability": {
@@ -102,6 +107,7 @@ def run(plan, args={}):
             )
         },
     )
+    tools.describe(plan, manifest)
     plan.store_service_files(
         name="deployment-state", service_name=tools.SERVICE_NAME, src=tools.STATE_PATH
     )

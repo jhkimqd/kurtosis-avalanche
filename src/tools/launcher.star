@@ -2,7 +2,8 @@
 
 The package runs `lab` commands in this service to generate node identities,
 sign transactions, and verify the result. `lab` records each step under /state,
-so the directory holds the complete history of a deployment.
+so the directory holds the complete history of a deployment. At the end, a
+shell script describes each network of the devnet in /opt/networks.
 """
 
 constants = import_module("../config/constants.star")
@@ -13,9 +14,14 @@ SERVICE_NAME = "tools"
 STATE_PATH = "/state"
 # Genesis, upgrade schedule, and node keys (written by `lab prepare`).
 NETWORK_PATH = STATE_PATH + "/network"
-# The files of ./static_files. The tools read the base L1 genesis and the
-# contract artifacts; the observability files in it are for other services.
+# Description of the devnet for its users, one directory per network: IDs, RPC
+# URLs, validators, genesis, and development accounts.
+DESCRIPTION_PATH = "/opt/networks"
+# The files of ./static_files. The tools read the base L1 genesis, the contract
+# artifacts, and the scripts; the observability files are for other services.
 STATIC_FILES_PATH = "/fixtures"
+# The shell script that writes `DESCRIPTION_PATH` (needs bash, curl, and jq).
+DESCRIBE_SCRIPT = STATIC_FILES_PATH + "/scripts/describe-networks.sh"
 
 
 def launch(plan, args):
@@ -94,3 +100,24 @@ def generate_network(plan, node_count, primary_validator_count):
     )
     node = read_json(plan, NETWORK_PATH + "/network.json", {"id": ".nodes[0].node_id"})
     return struct(artifact=artifact, bootstrap_node_id=node["id"])
+
+
+def describe(plan, manifest):
+    """Describes each network of the devnet in `DESCRIPTION_PATH`.
+
+    A shell script writes one directory per network: `primary-network` and
+    one per L1. A user can edit the script under /fixtures and run it again.
+
+    Args:
+        manifest: the deployment manifest (main.star).
+    Returns:
+        The files artifact `network-description` with the same files.
+    """
+    run(
+        plan,
+        "Describing each network of the devnet in {}".format(DESCRIPTION_PATH),
+        ["bash", DESCRIBE_SCRIPT, DESCRIPTION_PATH, json.encode(manifest)],
+    )
+    return plan.store_service_files(
+        name="network-description", service_name=SERVICE_NAME, src=DESCRIPTION_PATH
+    )

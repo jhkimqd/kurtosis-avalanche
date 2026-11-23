@@ -21,6 +21,8 @@ L1 = starlark.SimpleNamespace(
 )
 # The services of the observability stack, in the order in which they start.
 STACK = ["prometheus", "loki", "alloy", "grafana"]
+# The explorer services of one L1, which start after the L1s by default.
+EXPLORERS = ["explorer-db", "c-chain-explorer-api", "c-chain-explorer", "l1-0-explorer-api", "l1-0-explorer"]
 
 
 class NodeTest(unittest.TestCase):
@@ -32,6 +34,8 @@ class NodeTest(unittest.TestCase):
     def test_first_primary_validator(self):
         args = {
             "node_config": {"log-level": "debug"},
+            # The explorer needs "trace" in the C-Chain `apis`.
+            "explorer": False,
             "primary_network": {
                 "p_chain_config": {"checksums-enabled": True},
                 "c_chain_config": {"apis": ["chain"]},
@@ -172,13 +176,14 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(
             list(plan.services()),
             ["tools", "primary-0", "primary-1", "l1-0-validator-0", "l1-0-validator-1",
-             "l1-0-rpc-0", "l1-0-rpc-1", "l1-0-aggregator"],
+             "l1-0-rpc-0", "l1-0-rpc-1", "l1-0-aggregator"] + EXPLORERS,
         )
         self.assertEqual(self.by_name(commands, "prepare")[0][3:], ["6", "2"])
         # `lab create` receives the chain config and the subnet config as JSON.
         self.assertEqual(
             [json.loads(argument) if argument[0] == "{" else argument for argument in self.by_name(commands, "create")[0][6:]],
-            [{}, "false", {"warp-api-enabled": True, "pruning-enabled": False}, {"proposerNumHistoricalBlocks": 100}],
+            [{}, "false", {"warp-api-enabled": True, "pruning-enabled": False,
+                           "eth-apis": input_parser.EXPLORER_L1_ETH_APIS}, {"proposerNumHistoricalBlocks": 100}],
         )
         self.assertEqual(plan.services()["l1-0-rpc-1"].files["/l1"], "l1-0-config")
         for name, kwargs in plan.calls:
@@ -191,6 +196,16 @@ class DeploymentTest(unittest.TestCase):
             [command[1] for command in commands],
             ["prepare", "create", "convert", "wait", "manager", "run", "wait", "wait", "verify-rpcs"],
         )
+        # The last command describes each network in the tools service with a
+        # shell script, from the manifest. The package publishes the same files.
+        describe = plan.commands()[-1]
+        self.assertEqual(describe[:3], ["bash", "/fixtures/scripts/describe-networks.sh", "/opt/networks"])
+        self.assertEqual(json.loads(describe[3])["l1s"][0]["name"], "l1-0")
+        self.assertTrue((starlark.ROOT / "static_files/scripts/describe-networks.sh").is_file())
+        self.assertIn(
+            {"name": "network-description", "service_name": "tools", "src": "/opt/networks"},
+            [kwargs for name, kwargs in plan.calls if name == "store_service_files"],
+        )
         l1 = manifest["l1s"][0]
         self.assertEqual(l1["rpc_urls"][1], "http://l1-0-rpc-1:9650/ext/bc/<blockchain_id>/rpc")
         self.assertNotIn("bridge", l1)
@@ -201,6 +216,31 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(manifest["primary_network"]["c_chain_ws_url"], "ws://primary-0:9650/ext/bc/C/ws")
         self.assertEqual(manifest["observability"], {})
         self.assertFalse([name for name, _ in plan.calls if name == "remove_service"])
+        # The first node of each chain serves its API on a fixed host port.
+        services = plan.services()
+        public = {
+            name: service.public_ports["rpc"].number
+            for name, service in services.items()
+            if getattr(service, "public_ports", None) and name not in EXPLORERS
+        }
+        self.assertEqual(public, {"primary-0": 29650, "l1-0-rpc-0": 29651})
+        self.assertEqual(
+            manifest["primary_network"]["host"],
+            {
+                "rpc_url": "http://127.0.0.1:29650",
+                "p_chain_rpc_url": "http://127.0.0.1:29650/ext/bc/P",
+                "x_chain_rpc_url": "http://127.0.0.1:29650/ext/bc/X",
+                "c_chain_rpc_url": "http://127.0.0.1:29650/ext/bc/C/rpc",
+                "c_chain_ws_url": "ws://127.0.0.1:29650/ext/bc/C/ws",
+            },
+        )
+        self.assertEqual(
+            l1["host"],
+            {
+                "rpc_url": "http://127.0.0.1:29651/ext/bc/<blockchain_id>/rpc",
+                "ws_url": "ws://127.0.0.1:29651/ext/bc/<blockchain_id>/ws",
+            },
+        )
 
     def test_pos_defaults(self):
         plan, manifest, commands = self.run_package({})
@@ -210,7 +250,7 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(
             services,
             ["tools"] + STACK + ["primary-0", "primary-1", "primary-2"] + bootstrap
-            + ["l1-0-rpc-0", "l1-0-aggregator", "l1-0-relayer"] + validators,
+            + ["l1-0-rpc-0", "l1-0-aggregator", "l1-0-relayer"] + validators + EXPLORERS,
         )
         # Identities: 3 primary, then validators 3..7, RPC 8, bootstrap 9..12.
         self.assertEqual(self.by_name(commands, "prepare")[0][3:], ["13", "3"])
@@ -297,6 +337,18 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual([command[5] for command in self.by_name(commands, "create")], ["77777", "77778"])
         self.assertEqual([l1["name"] for l1 in manifest["l1s"]], ["l1-0", "l1-1"])
         self.assertIn("l1-1-rpc-0", plan.services())
+        self.assertEqual(plan.services()["l1-1-rpc-0"].public_ports["rpc"].number, 29652)
+        self.assertEqual(manifest["l1s"][1]["host"]["rpc_url"].split("/ext")[0], "http://127.0.0.1:29652")
+
+    def test_rpc_port_zero_leaves_every_port_to_kurtosis(self):
+        args = {"l1": {"validator_management": "poa", "validator_count": 1}, "bridge": False, "rpc_port": 0}
+        plan, manifest, commands = self.run_package(args)
+        # The explorers keep their own fixed ports (`explorer_port`).
+        for name, service in plan.services().items():
+            if name not in EXPLORERS:
+                self.assertFalse(getattr(service, "public_ports", None), name)
+        self.assertNotIn("host", manifest["primary_network"])
+        self.assertNotIn("host", manifest["l1s"][0])
 
 
 class ExplorerTest(unittest.TestCase):
@@ -444,7 +496,8 @@ class ObservabilityTest(unittest.TestCase):
                     planned += [node.name for node in l1.nodes + l1.bootstrap_nodes]
                     addresses += [target.address for target in l1.metrics_targets]
                 planned += [address.split(":")[0] for address in addresses]
-                self.assertEqual(sorted(planned), sorted(set(services) - {"tools"} - set(STACK)))
+                explorers = {name for name in services if "explorer" in name}
+                self.assertEqual(sorted(planned), sorted(set(services) - {"tools"} - set(STACK) - explorers))
                 # Each support service declares the port that Alloy scrapes.
                 for address in addresses:
                     name, port = address.split(":")
@@ -583,7 +636,7 @@ class ObservabilityTest(unittest.TestCase):
         # Every node that ever runs, the temporary ones included.
         self.assertEqual(
             sorted(target["labels"]["node"] for target in targets),
-            sorted(set(services) - {"tools", "l1-0-aggregator", "l1-0-relayer"} - set(STACK)),
+            sorted(set(services) - {"tools", "l1-0-aggregator", "l1-0-relayer"} - set(STACK) - set(EXPLORERS)),
         )
         metrics = {target["labels"]["node"]: target["labels"] for target in plan.rendered("alloy-targets")["avalanche.json"]}
         for target in targets:

@@ -9,7 +9,7 @@ Each functionality job deploys a fresh enclave, then runs `scripts/check-devnet.
 
 `scripts/check-observability.sh` checks the observability stack that the arguments of the job enabled: Alloy scrapes every node, relayer, and signature aggregator; Loki holds the log lines of every node with their level and their own time; every query of every dashboard returns data; and Grafana reaches its datasources. The PoA job runs no stack, and the ERC-20 PoS job runs it without logs.
 
-The ERC-20 PoS job also runs the block explorers (`explorer: true`). `scripts/check-devnet.sh` then checks each explorer: its web app answers, it holds the transaction that the script sent and its token transfer, it holds the internal calls of the bridge (C-Chain) or of the ValidatorManager (L1), and it reports its indexing finished.
+The PoA, native-token PoS, and ERC-20 PoS jobs run the block explorers, which are on by default; the two-L1 job turns them off (`explorer: false`) to keep its memory low. `scripts/check-devnet.sh` checks each explorer: its web app answers, it holds the transaction that the script sent and its token transfer, it holds the internal calls of the bridge (C-Chain) or of the ValidatorManager (L1), and it reports its indexing finished.
 
 Each functionality job first removes preinstalled toolchains that it does not use. A devnet with the observability stack needs several gigabytes for images, node databases, and the enclave dump; a runner that started with little free space ran out of disk. `disk.txt` in the artifacts records the free space after the deployment.
 

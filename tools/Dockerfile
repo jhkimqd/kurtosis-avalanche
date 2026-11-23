@@ -14,6 +14,13 @@ COPY *.go ./
 RUN go test ./... && go build -trimpath -o /out/lab .
 
 FROM debian@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc
+# curl and jq for the shell scripts in static_files/scripts, and for a user who
+# calls a node from this container. They come from the Debian snapshot that the
+# base image names in its sources, so a rebuild installs the same versions.
+RUN sed -i -E '/^# http:\/\/snapshot\.debian\.org/{s/^# /URIs: /;n;d}' /etc/apt/sources.list.d/debian.sources && \
+    apt-get -o Acquire::Check-Valid-Until=false update && \
+    apt-get install -y --no-install-recommends curl jq && \
+    rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/lab /usr/local/bin/lab
 COPY --from=build /build/upstream/LICENSE /usr/share/licenses/avalanche-tools/LICENSE
 ENTRYPOINT ["/usr/local/bin/lab"]

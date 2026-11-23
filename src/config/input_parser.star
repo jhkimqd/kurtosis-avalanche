@@ -60,8 +60,13 @@ DEFAULT_ARGS = {
     "logs": True,
     # Run Grafana with dashboards for the collected metrics and logs.
     "dashboards": True,
-    # Run a Blockscout block explorer for the C-Chain and for each L1.
-    "explorer": False,
+    # Port on this machine of the first Primary Network validator, which
+    # serves the P-, X-, and C-Chain. The first RPC node of L1 number n takes
+    # `rpc_port + 1 + n`. 0 lets Kurtosis pick a random port for every node.
+    "rpc_port": 29650,
+    # Run a Blockscout block explorer for the C-Chain and for each L1. It keeps
+    # the state of every block on the nodes; false saves its memory and disk.
+    "explorer": True,
     # First host port of the explorers. Each explorer takes two ports in a row:
     # the web app, then its API. The C-Chain comes first, then each L1.
     "explorer_port": 28000,

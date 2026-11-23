@@ -70,13 +70,16 @@ class ReferenceFilesTest(unittest.TestCase):
         for file in self.files:
             with self.subTest(file=file.name):
                 args = yaml.safe_load(uncommented(file))
+                # The references show the upstream defaults, such as pruning
+                # old state, which the explorer rejects (docs/explorer.md).
+                args["explorer"] = False
                 parsed = input_parser.parse(args)
                 # Each file documents one part of the arguments, and fills it.
                 changed = [
                     (section, key)
                     for section in ("primary_network", "l1")
                     for key in parsed[section]
-                    if parsed[section][key] != input_parser.parse({})[section][key]
+                    if parsed[section][key] != input_parser.parse({"explorer": False})[section][key]
                 ]
                 self.assertTrue(changed or "node_config" in args)
 

@@ -1,4 +1,7 @@
 # CI coverage: two L1s, each with validators, multiple RPC nodes, and a bridge.
+# No block explorers: three chains would add about 1.8 GB of memory to a job
+# that already runs the nightly relayer. The other jobs cover the explorers.
+explorer: false
 l1:
   count: 2
   validator_count: 4
