@@ -159,10 +159,10 @@ With the default `rpc_port: 29650`, the first node of each chain answers on a fi
 
 A WebSocket URL replaces `http` with `ws` and `/rpc` with `/ws`. Every other node gets a random port: `kurtosis enclave inspect avalanche` lists them, and `kurtosis port print avalanche <service> rpc` prints one. Add the paths above to it.
 
-The tools service describes each network in its own directory under `/opt/networks`: `primary-network/` for the P-, X-, and C-Chain, and `l1-0/`, `l1-1/`, … for the L1s. Each directory holds a `README.md`, the IDs and RPC URLs (`network.json`), the current validators, the genesis, and the development accounts that the package uses on that network, with their keys and roles (`accounts.json`). `primary-network/blockchains.json` is the answer of `platform.getBlockchains`; each L1 adds `subnet.json` from `platform.getSubnet`.
+The tools service describes each network in its own directory under `/opt/networks`: `primary-network/` for the P-, X-, and C-Chain, and `l1-0/`, `l1-1/`, … for the L1s. Each directory holds JSON files: the IDs and RPC URLs (`network.json`), the current validators, the genesis, and the development accounts that the package uses on that network, with their keys and roles (`accounts.json`). `primary-network/blockchains.json` is the answer of `platform.getBlockchains`; each L1 adds `subnet.json` from `platform.getSubnet`.
 
 ```sh
-kurtosis service exec avalanche tools 'cat /opt/networks/l1-0/README.md'
+kurtosis service exec avalanche tools 'jq . /opt/networks/l1-0/network.json'
 kurtosis files download avalanche network-description ./networks   # the same files
 ```
 

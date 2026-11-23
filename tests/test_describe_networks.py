@@ -109,13 +109,15 @@ class DescribeNetworksTest(unittest.TestCase):
         self.assertEqual(result.stdout, "Described 2 networks in {}\n".format(self.out))
         self.assertEqual(result.stderr, "")
         self.assertEqual(sorted(p.name for p in self.out.iterdir()),
-                         ["README.md", "deployment.json", "l1-0", "primary-network"])
+                         ["deployment.json", "l1-0", "primary-network"])
         self.assertEqual(
             sorted(p.name for p in (self.out / "primary-network").iterdir()),
-            ["README.md", "accounts.json", "blockchains.json", "genesis.json", "network.json", "validators.json"])
+            ["accounts.json", "blockchains.json", "genesis.json", "network.json", "validators.json"])
         self.assertEqual(
             sorted(p.name for p in (self.out / "l1-0").iterdir()),
-            ["README.md", "accounts.json", "genesis.json", "network.json", "subnet.json", "validators.json"])
+            ["accounts.json", "genesis.json", "network.json", "subnet.json", "validators.json"])
+        # Only JSON files: no file for a reader that repeats them.
+        self.assertEqual([p.name for p in self.out.rglob("*") if p.is_file() and p.suffix != ".json"], [])
         self.assertEqual(self.read("deployment.json"), MANIFEST)
 
         primary = self.read("primary-network/network.json")
@@ -159,12 +161,6 @@ class DescribeNetworksTest(unittest.TestCase):
                          ["ewoq", "bridge-recipient", "messenger-deployer", "token-remote-deployer", "relayer-l1-0"])
         self.assertIn("receives its rewards", l1[0]["role"])
         self.assertNotIn("Proof of Authority", l1[0]["role"])
-        readme = (self.out / "l1-0/README.md").read_text()
-        self.assertIn("`http://127.0.0.1:29651/ext/bc/L1Chain/rpc`", readme)
-        self.assertIn(RELAYER_ADDRESS, readme)
-        index = (self.out / "README.md").read_text()
-        self.assertIn("[l1-0](l1-0/README.md)", index)
-        self.assertIn("[primary-network](primary-network/README.md)", index)
 
     def test_poa_without_bridge_or_host_ports(self):
         manifest = json.loads(json.dumps(MANIFEST))
@@ -181,7 +177,6 @@ class DescribeNetworksTest(unittest.TestCase):
         self.assertIn("Proof of Authority", accounts[0]["role"])
         self.assertIsNone(self.read("l1-0/network.json")["host_rpc_url"])
         self.assertNotIn("staking_manager_address", self.read("l1-0/network.json"))
-        self.assertIn("none: `rpc_port` is 0", (self.out / "l1-0/README.md").read_text())
 
     def test_a_rerun_without_the_manifest_refreshes_the_files(self):
         self.assertEqual(self.run_script(json.dumps(MANIFEST)).returncode, 0)

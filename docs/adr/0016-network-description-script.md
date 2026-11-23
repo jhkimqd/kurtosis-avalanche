@@ -10,7 +10,7 @@ The Go program `lab` signs and journals transactions (ADR 0004). A description r
 
 ## Decision
 
-At the end of a deployment, the package runs `static_files/scripts/describe-networks.sh` in the tools service. It reads the deployment manifest, the P-Chain, and the state of the Go tools, and writes one directory per network under `/opt/networks`: `primary-network/` and one per L1, named like its services (`l1-0`). Each holds `README.md`, `network.json`, `validators.json`, `genesis.json`, and `accounts.json`; the Primary Network adds `blockchains.json`, an L1 adds `subnet.json`. The package also stores the directory as the files artifact `network-description`.
+At the end of a deployment, the package runs `static_files/scripts/describe-networks.sh` in the tools service. It reads the deployment manifest, the P-Chain, and the state of the Go tools, and writes one directory per network under `/opt/networks`: `primary-network/` and one per L1, named like its services (`l1-0`). Each holds only JSON files: `network.json`, `validators.json`, `genesis.json`, and `accounts.json`; the Primary Network adds `blockchains.json`, an L1 adds `subnet.json`. The package also stores the directory as the files artifact `network-description`.
 
 The tools image installs curl and jq from the Debian snapshot that its base image names in its sources (`snapshot.debian.org`, 2026-11-04), so a rebuild installs the same versions.
 
@@ -25,4 +25,5 @@ The tools image installs curl and jq from the Debian snapshot that its base imag
 
 - A `lab describe` command: a change needs a Go build, and the description needs none of the signing code.
 - One directory for all networks: a user who works with one L1 must pick its entries out of shared files.
+- A `README.md` in each directory that repeats the JSON files as tables: a second copy of the same facts, in a form that scripts cannot read.
 - curl and jq from the live Debian mirror: a rebuild would install whatever version is current.

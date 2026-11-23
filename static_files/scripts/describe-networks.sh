@@ -12,13 +12,12 @@
 #
 # It writes:
 #
-#   <output-dir>/README.md         the list of networks
 #   <output-dir>/deployment.json   the deployment manifest
 #   <output-dir>/primary-network/  the P-, X-, and C-Chain
 #   <output-dir>/<l1>/             one directory per L1, such as l1-0
 #
-# Each network directory holds README.md (for a reader), network.json (IDs and
-# RPC URLs), validators.json (platform.getCurrentValidators), genesis.json, and
+# Each network directory holds network.json (IDs and RPC URLs),
+# validators.json (platform.getCurrentValidators), genesis.json, and
 # accounts.json (the development keys that the package uses on that network).
 # primary-network/ adds blockchains.json (platform.getBlockchains); an L1
 # directory adds subnet.json (platform.getSubnet).
@@ -95,13 +94,6 @@ relayer() {
         "$(jq -r '[."source-blockchains"[0]."message-contracts"[].settings."reward-address"][0]' "$config")"
 }
 
-# markdown_accounts <accounts.json>: the accounts as a Markdown table.
-markdown_accounts() {
-    echo "| Name | EVM address | Private key | Role |"
-    echo "| --- | --- | --- | --- |"
-    jq -r '.[] | "| \(.name) | `\(.evm_address)` | `\(.private_key)` | \(.role) |"' "$1"
-}
-
 # ── Inputs ───────────────────────────────────────────────────────────────────
 
 work=$(mktemp -d "$out.XXXXXX")
@@ -161,36 +153,6 @@ role="Funded at genesis on the P-, X-, and C-Chain. Signs every setup transactio
     fi
 } | jq -s . >"$dir/accounts.json"
 
-{
-    echo "# Primary Network"
-    echo
-    echo "The local stand-in for Avalanche Mainnet. Network ID \`$network_id\`. Its validators run the P-Chain (staking and the registry of every L1), the X-Chain (assets), and the C-Chain (EVM)."
-    echo
-    echo "| Chain | Blockchain ID | EVM chain ID | RPC URL in the enclave | RPC URL on the host |"
-    echo "| --- | --- | --- | --- | --- |"
-    jq -r '.chains[] | "| \(.name) | `\(.blockchain_id)` | \(.evm_chain_id // "") | `\(.rpc_url)` | \(if .host_rpc_url then "`\(.host_rpc_url)`" else "" end) |"' "$dir/network.json"
-    echo
-    echo "The C-Chain WebSocket is \`$(jq -r .primary_network.c_chain_ws_url "$manifest")\`. The host URLs are empty when \`rpc_port\` is 0."
-    echo
-    echo "## Accounts"
-    echo
-    echo "Public development keys: anyone can derive them. Never send them value on a public network."
-    echo
-    markdown_accounts "$dir/accounts.json"
-    echo
-    echo "EWOQ on the P-Chain: \`$EWOQ_P_ADDRESS\`; on the X-Chain: \`$EWOQ_X_ADDRESS\`. P-Chain and X-Chain tools take its key as \`$EWOQ_CB58_KEY\`."
-    echo
-    echo "## Files"
-    echo
-    echo "| File | Content |"
-    echo "| --- | --- |"
-    echo "| \`network.json\` | IDs and RPC URLs of the P-, X-, and C-Chain. |"
-    echo "| \`blockchains.json\` | \`platform.getBlockchains\`: every blockchain that the P-Chain knows, the L1s included. |"
-    echo "| \`validators.json\` | \`platform.getCurrentValidators\` of the Primary Network. |"
-    echo "| \`genesis.json\` | The Primary Network genesis. |"
-    echo "| \`accounts.json\` | The development accounts above, with their private keys. |"
-} >"$dir/README.md"
-
 # ── Each L1 ──────────────────────────────────────────────────────────────────
 
 for ((i = 0; i < $(jq '.l1s | length' "$manifest"); i++)); do
@@ -237,60 +199,7 @@ for ((i = 0; i < $(jq '.l1s | length' "$manifest"); i++)); do
             relayer "$name"
         fi
     } | jq -s . >"$dir/accounts.json"
-
-    {
-        echo "# $name"
-        echo
-        echo "An Avalanche L1: a Subnet-EVM blockchain with its own validators ($mode). The P-Chain of the Primary Network registers it."
-        echo
-        echo "| | |"
-        echo "| --- | --- |"
-        jq -r '
-            ["Blockchain ID", "`\(.blockchain_id)`"], ["Subnet ID", "`\(.subnet_id)`"], ["VM ID", "`\(.vm_id)`"],
-            ["EVM chain ID", "\(.evm_chain_id)"], ["RPC URL in the enclave", "`\(.rpc_url)`"],
-            ["RPC URL on the host", (if .host_rpc_url then "`\(.host_rpc_url)`" else "none: `rpc_port` is 0" end)],
-            ["WebSocket in the enclave", "`\(.ws_url)`"], ["ValidatorManager", "`\(.validator_manager_address)`"],
-            (if .staking_manager_address then ["Staking manager", "`\(.staking_manager_address)`"] else empty end)
-            | "| \(.[0]) | \(.[1]) |"' "$dir/network.json"
-        if [[ $(jq '.rpc_urls | length' "$dir/network.json") -gt 1 ]]; then
-            echo
-            echo "Every RPC node, in the enclave: $(jq -r '[.rpc_urls[] | "`\(.)`"] | join(", ")' "$dir/network.json")."
-        fi
-        echo
-        echo "## Accounts"
-        echo
-        echo "Public development keys: anyone can derive them. Never send them value on a public network."
-        echo
-        markdown_accounts "$dir/accounts.json"
-        echo
-        echo "## Files"
-        echo
-        echo "| File | Content |"
-        echo "| --- | --- |"
-        echo "| \`network.json\` | IDs, RPC URLs, and contract addresses of the L1$([[ $has_bridge == false ]] || echo ", bridge contracts included"). |"
-        echo "| \`subnet.json\` | \`platform.getSubnet\`: the conversion to an L1 and the ValidatorManager. |"
-        echo "| \`validators.json\` | \`platform.getCurrentValidators\` of the L1. |"
-        echo "| \`genesis.json\` | The Subnet-EVM genesis of the L1. |"
-        echo "| \`accounts.json\` | The development accounts above, with their private keys. |"
-    } >"$dir/README.md"
 done
-
-# ── Index ────────────────────────────────────────────────────────────────────
-
-{
-    echo "# Devnet networks"
-    echo
-    echo "One directory per network. \`describe-networks.sh\` wrote them from the deployment manifest and the P-Chain on $(date -u +%Y-%m-%dT%H:%M:%SZ). The files are a snapshot; to refresh them, run:"
-    echo
-    echo '    bash /fixtures/scripts/describe-networks.sh /opt/networks'
-    echo
-    echo "| Directory | Network | Chains | RPC URL on the host |"
-    echo "| --- | --- | --- | --- |"
-    echo "| [primary-network](primary-network/README.md) | Primary Network | P-, X-, C-Chain | \`$(jq -r '.primary_network.host.c_chain_rpc_url // "random port"' "$manifest")\` (C-Chain) |"
-    jq -r '.l1s[] | "| [\(.name)](\(.name)/README.md) | L1, \(.validator_management) | `\(.blockchain_id)` | `\(.host.rpc_url // "random port")` |"' "$manifest"
-    echo
-    echo "\`deployment.json\` is the deployment manifest: every URL, ID, contract address, and the arguments."
-} >"$work/README.md"
 
 # Replace the old description in one step, so that a reader never sees half of it.
 count=$(jq '.l1s | length + 1' "$manifest")
