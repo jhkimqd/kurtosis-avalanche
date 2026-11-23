@@ -1,6 +1,6 @@
 # 0004. Sign transactions in a Go tool that journals every step
 
-Status: Accepted
+Status: Superseded by 0018
 
 ## Context
 

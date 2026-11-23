@@ -2,7 +2,7 @@
 
 # ── Networks ─────────────────────────────────────────────────────────────────
 
-# Avalanche network ID of the local Primary Network. The Go tools sign only
+# Avalanche network ID of the local Primary Network. The setup scripts sign only
 # for a node that reports this ID, so they never sign for Fuji or Mainnet.
 NETWORK_ID = 88888
 
@@ -53,7 +53,8 @@ IMAGES = {
     "blockscout_frontend": "ghcr.io/blockscout/frontend@sha256:4b69f44148414b55c6b8550bc3270c63c9f99e923d54ef0b307e762af6bac90a",
     # PostgreSQL 17.12 (Alpine). Stores the index of every explorer.
     "postgres": "postgres@sha256:526f86d93c6ea08fd3f1fe5605650cacc781b2c6013169a0ad8f42c7d3d84f32",
-    # Go tools. Empty builds the image from ./tools.
+    # Tools service: AvalancheGo, platform-cli, cast, curl, and jq. Empty
+    # builds the image from ./tools.
     "tools": "",
 }
 
@@ -67,8 +68,8 @@ NODE_STAKING_PORT_NUMBER = 9651
 SIGNATURE_AGGREGATOR_API_PORT_NUMBER = 8080
 SIGNATURE_AGGREGATOR_METRICS_PORT_NUMBER = 8081
 
-# Fixed by the relayer configuration that `lab bridge-deploy` writes
-# (tools/bridge.go).
+# Fixed by the relayer configuration that `bridge.sh deploy` writes
+# (static_files/scripts/bridge.sh).
 ICM_RELAYER_API_PORT_NUMBER = 9091
 ICM_RELAYER_METRICS_PORT_NUMBER = 9092
 
@@ -131,7 +132,8 @@ VALIDATOR_MANAGER_ADDRESS = "0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25"
 POA_VALIDATOR_WEIGHT = 1000000
 
 # P-Chain weight of each PoS validator. It follows from the staking settings in
-# tools/staking.go: a stake of 1 token divided by a weight-to-value factor of 5e12.
+# static_files/scripts/staking.sh: a stake of 1 token divided by a
+# weight-to-value factor of 5e12.
 POS_VALIDATOR_WEIGHT = 200000
 
 # Seconds that the bootstrap nodes of a PoS L1 keep running after the P-Chain

@@ -6,19 +6,19 @@ An Avalanche L1 is active when three things are true:
 - A ValidatorManager contract on the L1 controls who may validate.
 - The validators produce blocks.
 
-The package reaches this state in the same steps as a real L1 (ACP-77). `src/l1/launcher.star` runs the steps. Most steps call one or more commands of the Go tool `lab` in the `tools` service. The Kurtosis output shows a line for each.
+The package reaches this state in the same steps as a real L1 (ACP-77). `src/l1/launcher.star` runs the steps. Most steps run a shell script of `static_files/scripts/` in the `tools` service. The scripts send P-Chain transactions with `platform-cli` and EVM transactions with Foundry's `cast` (ADR 0018). The Kurtosis output shows a line for each.
 
 ## The steps
 
-| Step | Line in the Kurtosis output | Where | What happens | `lab` command |
+| Step | Line in the Kurtosis output | Where | What happens | Script command |
 | --- | --- | --- | --- | --- |
-| 1 | Creating the subnet and blockchain | P-Chain | `CreateSubnetTx` creates a subnet that the EWOQ account owns. `CreateChainTx` creates a Subnet-EVM blockchain in it, with the L1 genesis. | `create` |
+| 1 | Creating the subnet and blockchain | P-Chain | `CreateSubnetTx` creates a subnet that the EWOQ account owns. `CreateChainTx` creates a Subnet-EVM blockchain in it, with the L1 genesis. | `l1.sh create` |
 | 2 | Adding service `l1-<i>-...` | Enclave | The first validators and the RPC nodes start. They track the subnet. | |
-| 3 | Converting to an L1 | P-Chain | `ConvertSubnetToL1Tx` names the first validators, their weight, and the address of the future ValidatorManager. It gives each validator 100 AVAX, from which the P-Chain takes its continuous fee. The chain can now build blocks. | `convert` |
-| 4 | Deploying the ValidatorManager | L1 | The EWOQ account deploys the `ValidatorMessages` library and the `ValidatorManager`, then calls `initialize` and `initializeValidatorSet`. The last call carries a Warp message from the P-Chain that proves the conversion. | `manager` |
-| 5 | Deploying the ICM messenger and bridge contracts | C-Chain and L1 | Only with `bridge: true`. See [The bridge](#the-bridge). | `bridge-deploy`, `bridge-activate` |
-| 6 | Staking a validator; removing the bootstrap validators | L1 and P-Chain | Only with Proof of Stake. See [Proof of Stake](#proof-of-stake). | `migrate`, `finalize-pos` |
-| 7 | Bridging tokens; sending test transfers; checking that the RPC nodes agree | C-Chain and L1 | The package tests the result. | `bridge-smoke`, `run`, `verify-rpcs` |
+| 3 | Converting to an L1 | P-Chain | `ConvertSubnetToL1Tx` names the first validators, their weight, and the address of the future ValidatorManager. It gives each validator 100 AVAX, from which the P-Chain takes its continuous fee. The chain can now build blocks. | `l1.sh convert` |
+| 4 | Deploying the ValidatorManager | L1 | The EWOQ account deploys the `ValidatorMessages` library and the `ValidatorManager`, then calls `initialize` and `initializeValidatorSet`. The last call carries a Warp message from the P-Chain that proves the conversion. | `l1.sh manager` |
+| 5 | Deploying the ICM messenger and bridge contracts | C-Chain and L1 | Only with `bridge: true`. See [The bridge](#the-bridge). | `bridge.sh deploy`, `bridge.sh activate` |
+| 6 | Staking a validator; removing the bootstrap validators | L1 and P-Chain | Only with Proof of Stake. See [Proof of Stake](#proof-of-stake). | `staking.sh migrate`, `staking.sh finalize` |
+| 7 | Bridging tokens; sending test transfers; checking that the RPC nodes agree | C-Chain and L1 | The package tests the result. | `bridge.sh smoke`, `checks.sh transfers`, `checks.sh rpcs` |
 
 After step 4 the L1 is an active Proof of Authority L1: the owner of the ValidatorManager, the EWOQ account, adds and removes validators. `examples/poa.yml` stops here and goes to step 7.
 
@@ -28,16 +28,16 @@ A Warp message is a message that the validators of one chain sign together with 
 
 A validator named in step 3 holds no stake, because the staking contract does not exist yet. A Proof of Stake L1 therefore starts with temporary bootstrap validators (`l1-<i>-bootstrap-<n>`) and replaces them:
 
-1. `lab migrate` deploys a reward calculator and the staking manager: `NativeTokenStakingManager`, or `ERC20TokenStakingManager` with the `StakingToken` (STAKE). It transfers the ownership of the ValidatorManager to the staking manager. From now on only a stake adds a validator.
-2. For each permanent validator, `lab migrate` registers it:
+1. `staking.sh migrate` deploys a reward calculator and the staking manager: `NativeTokenStakingManager`, or `ERC20TokenStakingManager` with the `StakingToken` (STAKE). It transfers the ownership of the ValidatorManager to the staking manager. From now on only a stake adds a validator.
+2. For each permanent validator, `staking.sh migrate` registers it:
    - `initiateValidatorRegistration` on the L1 locks a stake of 1 token and sends a Warp message.
    - `RegisterL1ValidatorTx` carries the message to the P-Chain and gives the validator a fee balance of 100 AVAX.
    - `completeValidatorRegistration` returns the confirmation of the P-Chain to the L1.
-3. For each bootstrap validator, `lab finalize-pos` removes it:
+3. For each bootstrap validator, `staking.sh finalize` removes it:
    - `initiateValidatorRemoval` on the L1 sends a Warp message.
    - `SetL1ValidatorWeightTx` carries it to the P-Chain and sets the weight to 0.
    - `completeValidatorRemoval` returns the confirmation to the L1.
-4. `lab finalize-pos` checks that the P-Chain lists exactly the staked validators.
+4. `staking.sh finalize` checks that the P-Chain lists exactly the staked validators.
 5. The package waits 65 seconds and then removes the bootstrap nodes. The wait avoids a defect of AvalancheGo v1.15.0: a node that loses the connection to a validator too soon after its removal can no longer save its uptime data. `_wait_for_uptime_trackers` in `src/l1/launcher.star` has the details.
 
 The ValidatorManager lets the validator set change by at most 20% of its total weight per second. The number and the weight of the bootstrap validators follow from this limit: see the comment "PoS bootstrap validators" in `src/l1/launcher.star`.
@@ -46,10 +46,10 @@ The ValidatorManager lets the validator set change by at most 20% of its total w
 
 With `bridge: true`, the package connects the C-Chain and the L1 with Avalanche ICM:
 
-1. `lab bridge-deploy` deploys a `TeleporterMessenger` and a `TeleporterRegistry` on both chains. On the C-Chain it deploys the `CashToken` (CASH) and an `ERC20TokenHome`. On the L1 it deploys a `NativeTokenRemote`, which the L1 genesis allows to mint the native token.
+1. `bridge.sh deploy` deploys a `TeleporterMessenger` and a `TeleporterRegistry` on both chains. On the C-Chain it deploys the `CashToken` (CASH) and an `ERC20TokenHome`. On the L1 it deploys a `NativeTokenRemote`, which the L1 genesis allows to mint the native token.
 2. The `l1-<i>-relayer` service starts. It delivers the messages between the two chains.
-3. `lab bridge-activate` registers the L1 side with the C-Chain side, and locks CASH on the C-Chain as collateral for the native tokens that the L1 genesis created.
-4. `lab bridge-smoke` sends 7 CASH from the C-Chain to a new account on the L1 and spends them there as gas.
+3. `bridge.sh activate` registers the L1 side with the C-Chain side, and locks CASH on the C-Chain as collateral for the native tokens that the L1 genesis created.
+4. `bridge.sh smoke` sends 7 CASH from the C-Chain to a new account on the L1 and spends them there as gas.
 
 ## Check a running devnet
 
@@ -138,12 +138,12 @@ cast send --rpc-url $L1 --private-key <EWOQ key> --create $(jq -r .bytecode.obje
 
 ## The record of a deployment
 
-`lab` writes each signed setup transaction to a journal file before it sends it. The `deployment-state` artifact holds these journals, the genesis files, and the node keys:
+The setup scripts record each setup transaction in a journal file. An EVM journal (`<step>.evm.json`) holds the signed transaction, written before it is sent; a P-Chain journal (`<step>.pchain.json`) holds the transaction ID that `platform-cli` reported. A repeated step reads its journal and sends nothing new. The `deployment-state` artifact holds these journals, the genesis files, and the node keys:
 
 ```sh
 kurtosis files download avalanche deployment-state ./state
 ls state          # c-chain  l1-0  network
-ls state/l1-0     # subnet.journal.json, chain.journal.json, conversion.journal.json, ...
+ls state/l1-0     # subnet.pchain.json, chain.pchain.json, conversion.pchain.json, initialize.evm.json, ...
 ```
 
 The state contains every private key of the devnet. Do not publish it if you reuse a key.

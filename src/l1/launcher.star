@@ -38,7 +38,8 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
     evm_chain_id = l1_args["chain_id"] + l1_index
     mode = l1_args["validator_management"]
     is_pos = mode != constants.VALIDATOR_MANAGEMENT.poa
-    # `lab` keeps the journals and results of this L1 in its own directory.
+    # The setup scripts keep the journals and results of this L1 in its own
+    # directory.
     state_path = "{}/{}".format(tools.STATE_PATH, name)
 
     # Node identities of this L1, in the order of `node_count`.
@@ -53,11 +54,11 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
 
     # 1. Create the subnet and the blockchain. The blockchain ID is the hash
     #    of the transaction, so it is known only now.
-    tools.run(
+    tools.run_script(
         plan,
         "Creating the subnet and blockchain of {} on the P-Chain".format(name),
+        "l1.sh",
         [
-            "lab",
             "create",
             primary.rpc_url,
             state_path,
@@ -78,7 +79,7 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
         subnet_id=ids["subnet_id"],
         blockchain_id=ids["blockchain_id"],
         # AvalancheGo finds the chain config and the subnet config by ID. Only
-        # `lab create` knows the IDs, so it wrote the files with their names.
+        # `l1.sh create` knows the IDs, so it wrote the files with their names.
         config_artifact=plan.store_service_files(
             name=name + "-config",
             service_name=tools.SERVICE_NAME,
@@ -133,11 +134,11 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
     rpc_url = rpc_urls[0]
 
     # 3. Convert the subnet to an L1. The chain produces blocks from here on.
-    tools.run(
+    tools.run_script(
         plan,
         "Converting {} to an L1 with {} validators".format(name, len(initial_indexes)),
+        "l1.sh",
         [
-            "lab",
             "convert",
             primary.rpc_url,
             state_path,
@@ -156,10 +157,11 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
     aggregator_url = signature_aggregator.launch(
         plan, args, name, l1.subnet_id, primary.rpc_url
     )
-    tools.run(
+    tools.run_script(
         plan,
         "Deploying the ValidatorManager of {}".format(name),
-        ["lab", "manager", primary.rpc_url, rpc_url, state_path, aggregator_url],
+        "l1.sh",
+        ["manager", primary.rpc_url, rpc_url, state_path, aggregator_url],
     )
     manifest = {
         "name": name,
@@ -196,11 +198,11 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
             validator_nodes.append(node)
             # The first call also deploys the staking manager and hands it the
             # ownership of the ValidatorManager. Each call stakes one validator.
-            tools.run(
+            tools.run_script(
                 plan,
                 "Staking {} as a validator".format(node.name),
+                "staking.sh",
                 [
-                    "lab",
                     "migrate",
                     primary.rpc_url,
                     rpc_url,
@@ -210,12 +212,12 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
                     mode,
                 ],
             )
-        tools.run(
+        tools.run_script(
             plan,
             "Removing the bootstrap validators of {}".format(name),
+            "staking.sh",
             [
-                "lab",
-                "finalize-pos",
+                "finalize",
                 primary.rpc_url,
                 rpc_url,
                 state_path,
@@ -234,19 +236,21 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
     # 7. Verify: bridge a token, send transfers, compare the RPC nodes.
     if args["bridge"]:
         bridge.verify(plan, name, state_path, primary.rpc_url, rpc_url)
-    tools.run(
+    tools.run_script(
         plan,
         "Sending {} test transfers on {}".format(
             constants.SMOKE_TRANSACTION_COUNT, name
         ),
-        ["lab", "run", rpc_url, str(constants.SMOKE_TRANSACTION_COUNT)],
+        "checks.sh",
+        ["transfers", rpc_url, str(constants.SMOKE_TRANSACTION_COUNT)],
     )
     for url in rpc_urls:
         _wait_for_rpc(plan, name, url, evm_chain_id)
-    tools.run(
+    tools.run_script(
         plan,
         "Checking that the RPC nodes of {} agree".format(name),
-        ["lab", "verify-rpcs"] + rpc_urls,
+        "checks.sh",
+        ["rpcs"] + rpc_urls,
     )
 
     return struct(manifest=manifest)
@@ -324,7 +328,7 @@ def node_count(l1_args):
 # The validators named at conversion hold no stake, so a PoS L1 replaces them:
 # each permanent validator stakes and joins, then each bootstrap validator
 # leaves. The ValidatorManager limits every such change to 20% of the total
-# weight (the churn limit, set in tools/manager.go). The two functions below
+# weight (the churn limit, set in static_files/scripts/l1.sh). The two functions below
 # pick the smallest bootstrap set that keeps every step within that limit. For
 # N permanent validators of weight S, K bootstrap validators of weight W must
 # satisfy:
@@ -369,10 +373,11 @@ def _wait_for_uptime_trackers(plan, l1_name):
 
 
 def _wait_for_rpc(plan, l1_name, rpc_url, evm_chain_id):
-    tools.run(
+    tools.run_script(
         plan,
         "Waiting for {} to serve chain ID {} of {}".format(
             rpc_url, evm_chain_id, l1_name
         ),
-        ["lab", "wait", rpc_url, str(evm_chain_id)],
+        "checks.sh",
+        ["wait", rpc_url, str(evm_chain_id)],
     )

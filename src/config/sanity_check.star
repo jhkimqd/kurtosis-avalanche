@@ -276,8 +276,8 @@ def _check_genesis(genesis, bridge):
     for key in MANAGED_GENESIS_KEYS:
         if key in genesis:
             fail("l1.genesis.{} is managed by the package".format(key))
-    # A key without a value keeps the base genesis value (see mergeJSON in
-    # tools/lifecycle.go).
+    # A key without a value keeps the base genesis value (see l1_genesis in
+    # static_files/scripts/l1.sh).
     config = genesis.get("config")
     if config == None:
         config = {}

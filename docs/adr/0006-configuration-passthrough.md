@@ -21,7 +21,7 @@ The arguments file carries AvalancheGo options under their upstream names, in ma
 - Node flags merge in layers: `DEFAULT_NODE_CONFIG`, then `node_config`, then the `node_config` of the section. A later layer takes precedence.
 - The package sets the flags in `MANAGED_NODE_FLAGS` itself: identity, paths, ports, peers. It rejects an override, because one would break the port mapping or peer discovery.
 - The package does not validate the other options. AvalancheGo does, and the node log reports the error.
-- The L1 config files are named by IDs that exist only after the P-Chain transactions. `lab create` therefore writes them, and every L1 node mounts them.
+- The L1 config files are named by IDs that exist only after the P-Chain transactions. `l1.sh create` therefore writes them, and every L1 node mounts them.
 
 ## Consequences
 

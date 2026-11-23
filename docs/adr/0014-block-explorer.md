@@ -19,7 +19,7 @@ The open-source explorers for EVM chains, as of 2026-11:
 
 The release workflows of Blockscout push images to private repositories (`ghcr.io/blockscout/blockscout-private`); a manual workflow copies a release to the public ones. The public repositories stop at backend 9.0.2 (2025-08-14) and frontend v2.3.5 (2025-10-14). The GPL releases after them, up to backend v10.2.6 and frontend v2.7.1, have no public image. Both pinned images carry GPL-3.0 in their labels and source trees, and exist for `linux/amd64` and `linux/arm64`.
 
-The pinned AvalancheGo activates every network upgrade at genesis (`tmpnet.UpgradeConfig(0)` in `tools/main.go`). The C-Chain therefore runs the SAE VM (`vms/saevm/cchain`), which serves `debug_trace*` by default. Subnet-EVM serves them only with `debug-tracer` in its `eth-apis` list, and a live run of Blockscout against a Subnet-EVM node without it logged `-32601 method not found` for every block. Both VMs prune old state by default (`pruning-enabled`).
+The pinned AvalancheGo activates every network upgrade at genesis (`static_files/upgrade.json`). The C-Chain therefore runs the SAE VM (`vms/saevm/cchain`), which serves `debug_trace*` by default. Subnet-EVM serves them only with `debug-tracer` in its `eth-apis` list, and a live run of Blockscout against a Subnet-EVM node without it logged `-32601 method not found` for every block. Both VMs prune old state by default (`pruning-enabled`).
 
 ## Decision
 

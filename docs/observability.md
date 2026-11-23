@@ -37,7 +37,7 @@ The (i) of each panel says what the panel shows and how to read it.
 An EVM chain builds a block only when it has transactions. After the deployment the graphs of an L1 are therefore flat until you send transactions:
 
 ```sh
-kurtosis service exec avalanche tools 'lab run http://l1-0-rpc-0:9650/ext/bc/<blockchain-id>/rpc 20'
+kurtosis service exec avalanche tools 'bash /fixtures/scripts/checks.sh transfers http://l1-0-rpc-0:9650/ext/bc/<blockchain-id>/rpc 20'
 ```
 
 The command sends 20 transfers, one after the other, and takes about 40 seconds.

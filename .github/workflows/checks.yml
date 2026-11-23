@@ -21,11 +21,16 @@ jobs:
       - uses: ./.github/actions/setup-kurtosis
       # Use the system Python that owns the apt-installed PyYAML package.
       - run: /usr/bin/python3 -m unittest discover -s tests -v
-      # The build runs Go unit tests inside the pinned compiler image.
+      # The runner image ships shellcheck.
+      - run: shellcheck -x -P static_files/scripts static_files/scripts/*.sh
+      # The tools image holds released tools only; the build checks their sums.
       - run: bash scripts/build.sh
-      # Bridge recovery tests use the production ABIs; do not silently skip them.
-      - run: docker build --target build --tag avalanche-tools:tests tools
-      - run: docker run --rm -v "$PWD/static_files:/fixtures:ro" avalanche-tools:tests sh -c 'test -z "$(gofmt -l ./*.go)" && go test -count=1 -race -v ./... && go vet ./...'
+      # Generate identities with the pinned AvalancheGo and check the genesis.
+      - run: >-
+          docker run --rm -v "$PWD/static_files:/fixtures:ro" avalanche-tools:local bash -c
+          'bash /fixtures/scripts/network.sh prepare /tmp/network 4 2
+          && jq -e "(.initialStakers | length) == 2 and all(.initialStakers[]; .signer.proofOfPossession | length == 194)" /tmp/network/genesis.json
+          && jq -e ".nodes | length == 4" /tmp/network/network.json'
       - run: bash scripts/check-contracts.sh
       # Lint, then plan every file in examples/ and .github/configs/.
       - run: bash scripts/check-package.sh

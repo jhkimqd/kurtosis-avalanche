@@ -311,7 +311,7 @@ class NodeConfigTest(unittest.TestCase):
 
 
 def merge(base, override):
-    """Mirrors mergeJSON in tools/lifecycle.go."""
+    """Mirrors the merge of l1_genesis in static_files/scripts/l1.sh."""
     for key, value in override.items():
         if value is None:
             continue

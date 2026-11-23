@@ -113,6 +113,9 @@ class RepositoryDocsTest(unittest.TestCase):
         # A path in backticks that starts with a top-level directory of the repository.
         pattern = r"`((?:src|tools|tests|scripts|examples|docs|static_files|contracts|\.github)/[^`*<> ]+)`"
         for document in self.documents + sorted(ROOT.glob("examples/*.yml")):
+            # A superseded decision is a record of its time; its files may be gone.
+            if re.search(r"^Status: .*[Ss]uperseded", document.read_text(), re.M):
+                continue
             for path in re.findall(pattern, document.read_text()):
                 with self.subTest(document=document.name, path=path):
                     self.assertTrue((ROOT / path.rstrip("/.,")).exists())
@@ -120,7 +123,8 @@ class RepositoryDocsTest(unittest.TestCase):
     def test_pinned_version_is_the_same_everywhere(self):
         constants_text = (ROOT / "src/config/constants.star").read_text()
         version = re.search(r"# AvalancheGo (v[\d.]+)\. Runs the Primary Network", constants_text)[1]
-        commit = re.search(r"fetch --depth 1 origin ([0-9a-f]{40})", (ROOT / "tools/Dockerfile").read_text())[1]
+        # AGENTS.md names the commit of the pinned AvalancheGo image.
+        commit = re.search(r"\| AvalancheGo \| v[\d.]+, commit `([0-9a-f]{40})` \|", (ROOT / "AGENTS.md").read_text())[1]
         files = [ROOT / "README.md", ROOT / "AGENTS.md", ROOT / "examples/pos.yml"]
         files += sorted(CONFIG.glob("*.yml"))
         for file in files:
@@ -130,6 +134,18 @@ class RepositoryDocsTest(unittest.TestCase):
                 # No other AvalancheGo release is named, and no other commit.
                 self.assertEqual(set(re.findall(r"(?:AvalancheGo|avalanchego:|subnet-evm:)\s?(v\d+\.\d+\.\d+)", text)) - {version}, set())
                 self.assertEqual(set(re.findall(r"\b[0-9a-f]{40}\b", text)) - {commit}, set())
+
+    def test_tools_image_uses_the_pinned_tools(self):
+        # The tools image copies AvalancheGo from the node image of the
+        # package, and cast from the Foundry release that builds the contracts.
+        dockerfile = (ROOT / "tools/Dockerfile").read_text()
+        avalanchego = starlark.load("src/config/constants.star").IMAGES["avalanchego"]
+        self.assertIn("COPY --from={} ".format(avalanchego), dockerfile)
+        foundry = re.search(r"FROM ghcr.io/foundry-rs/foundry:(v[\d.]+)@", (ROOT / "contracts/Dockerfile").read_text())[1]
+        self.assertIn("ARG FOUNDRY_VERSION={}\n".format(foundry), dockerfile)
+        # Every release archive is checked against a pinned SHA-256.
+        self.assertEqual(len(re.findall(r"^ARG \w+_SHA256_(?:AMD64|ARM64)=[0-9a-f]{64}$", dockerfile, re.M)), 4)
+        self.assertEqual(dockerfile.count("sha256sum -c -"), 2)
 
     def test_readme_names_the_pinned_versions(self):
         constants_text = (ROOT / "src/config/constants.star").read_text()

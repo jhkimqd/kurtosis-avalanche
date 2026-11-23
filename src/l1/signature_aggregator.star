@@ -1,7 +1,7 @@
 """Signature aggregator: collects validator signatures for a Warp message.
 
 A Warp message is valid once validators that hold 67% of the stake have signed
-it. The Go tools ask this service for those signatures whenever the validator
+it. The setup scripts ask this service for those signatures whenever the validator
 set of an L1 changes.
 """
 

@@ -12,14 +12,14 @@ Each enclave runs its own Primary Network: validators that run the P-Chain, X-Ch
 
 - The network ID is `88888` and cannot be configured. The C-Chain ID is also `88888`.
 - Every network upgrade is active from the first block (`upgrade.json`).
-- `lab` signs only for a node that reports network `88888` (`localOnly` in `tools/rpc.go`).
+- The setup scripts sign only for a node that reports network `88888` (`local_only` in `static_files/scripts/lib.sh`).
 - An L1 cannot take the EVM chain ID of Ethereum, the Fuji C-Chain, or the Mainnet C-Chain, so a signed devnet transaction is not valid there. The guard covers only these three IDs. The real protection is that no key of the devnet is secret or holds real funds.
 - The genesis validators stake for ten years, so a long-lived devnet keeps its validators.
 
 ## Consequences
 
 - A devnet is complete and offline: no faucet, no external endpoint.
-- The package does not sign a Fuji or Mainnet transaction with its publicly known keys. No argument points a node or `lab` at another network: the network ID, the genesis, and the peers are managed.
+- The package does not sign a Fuji or Mainnet transaction with its publicly known keys. No argument points a node or the setup scripts at another network: the network ID, the genesis, and the peers are managed.
 - Behaviour that depends on Mainnet state or on Mainnet-only parameters is not reproduced. The economic parameters are the AvalancheGo defaults for a custom network, plus `DEFAULT_NODE_CONFIG`.
 - L1 nodes sync only the P-Chain of the Primary Network (`partial-sync-primary-network`), which keeps them small.
 

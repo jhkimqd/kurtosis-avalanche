@@ -61,7 +61,7 @@ flowchart TB
 - The [Kurtosis CLI](https://docs.kurtosis.com/install) with its default Docker backend. CI uses version 1.18.2.
 - Enough CPU, memory, and disk for your chosen topology. More validators and L1s require more resources.
 
-The first run downloads images and builds the tools image from source. Default images are pinned by digest in [constants.star](src/config/constants.star):
+The first run downloads images and builds the tools image from released tools: AvalancheGo, [platform-cli](https://github.com/ava-labs/platform-cli), and Foundry's `cast`. Default images are pinned by digest in [constants.star](src/config/constants.star):
 
 | Component | Version |
 | --- | --- |
@@ -166,7 +166,12 @@ kurtosis service exec avalanche tools 'jq . /opt/networks/l1-0/network.json'
 kurtosis files download avalanche network-description ./networks   # the same files
 ```
 
-The shell script [`static_files/scripts/describe-networks.sh`](static_files/scripts/describe-networks.sh) writes them with `curl` and `jq`, which the tools service also offers for your own calls. It is mounted at `/fixtures/scripts/`; run it again to refresh the snapshot.
+The shell script [`static_files/scripts/describe-networks.sh`](static_files/scripts/describe-networks.sh) writes them with `curl` and `jq`. It is mounted at `/fixtures/scripts/`; run it again to refresh the snapshot. The tools service also offers `platform-cli`, `cast`, `curl`, and `jq` for your own calls:
+
+```sh
+kurtosis service exec avalanche tools 'platform-cli wallet balance --key-name ewoq --rpc-url http://primary-0:9650 --allow-insecure-http'
+kurtosis service exec avalanche tools 'cast balance 0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC -e -r http://primary-0:9650/ext/bc/C/rpc'
+```
 
 The Avalanche network ID is `88888`. The public development account, EWOQ, is funded on every chain:
 
