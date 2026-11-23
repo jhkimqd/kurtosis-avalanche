@@ -18,10 +18,11 @@ def launch(plan, args, l1_name, state_path, primary_rpc_url, l1_rpc_url):
     """
     chains = [primary_rpc_url, l1_rpc_url, state_path]
 
-    tools.run(
+    tools.run_script(
         plan,
         "Deploying the ICM messenger and bridge contracts for {}".format(l1_name),
-        ["lab", "bridge-deploy"] + chains,
+        "bridge.sh",
+        ["deploy"] + chains,
     )
     addresses = tools.read_json(
         plan,
@@ -34,7 +35,7 @@ def launch(plan, args, l1_name, state_path, primary_rpc_url, l1_rpc_url):
         },
     )
 
-    # `lab bridge-deploy` also wrote the relayer configuration.
+    # `bridge.sh deploy` also wrote the relayer configuration.
     relayer_config = plan.store_service_files(
         name=l1_name + "-relayer-config",
         service_name=tools.SERVICE_NAME,
@@ -69,10 +70,11 @@ def launch(plan, args, l1_name, state_path, primary_rpc_url, l1_rpc_url):
 
     # The L1 side registers with the C-Chain side through the relayer. The
     # C-Chain side then receives collateral for the L1's genesis token supply.
-    tools.run(
+    tools.run_script(
         plan,
         "Registering the {} bridge and adding collateral".format(l1_name),
-        ["lab", "bridge-activate"] + chains,
+        "bridge.sh",
+        ["activate"] + chains,
     )
     return addresses
 
@@ -91,8 +93,9 @@ def metrics_address(l1_name):
 
 def verify(plan, l1_name, state_path, primary_rpc_url, l1_rpc_url):
     """Bridges tokens from the C-Chain and spends them as gas on the L1."""
-    tools.run(
+    tools.run_script(
         plan,
         "Bridging tokens from the C-Chain to {}".format(l1_name),
-        ["lab", "bridge-smoke", primary_rpc_url, l1_rpc_url, state_path],
+        "bridge.sh",
+        ["smoke", primary_rpc_url, l1_rpc_url, state_path],
     )

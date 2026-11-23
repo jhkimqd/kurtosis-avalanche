@@ -57,7 +57,7 @@ l1:
   #               (see examples/poa.yml).
   #
   # The package stakes 1 token for each validator from the EWOQ account. The
-  # staking rules are fixed in tools/staking.go:
+  # staking rules are fixed in static_files/scripts/staking.sh:
   #
   #   stake per validator         minimum 1 token, maximum 10 tokens
   #   minimum stake duration      60 seconds

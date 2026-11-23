@@ -23,7 +23,7 @@
 # directory adds subnet.json (platform.getSubnet).
 #
 # It needs bash, curl, and jq. STATE_DIR (default /state) is the state of the
-# Go tools: the genesis files and the bridge relayer configuration.
+# setup scripts: the genesis files and the bridge relayer configuration.
 set -euo pipefail
 
 out=${1:?Usage: $0 <output-dir> [deployment-manifest-json]}
@@ -42,7 +42,7 @@ fi
 # the Primary Network, and the ID of its VM are all the empty ID.
 EMPTY_ID=11111111111111111111111111111111LpoYY
 
-# The public EWOQ key funds the genesis of every chain (tools/main.go). The
+# The public EWOQ key funds the genesis of every chain (network.sh). The
 # P-Chain and X-Chain addresses use the prefix "custom" of network 88888.
 EWOQ_KEY=0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027
 EWOQ_CB58_KEY=PrivateKey-ewoqjP7PxY4yr3iLTpLisriqt94hdyDFNgchSxGGztUrTXtNN
@@ -51,7 +51,7 @@ EWOQ_P_ADDRESS=P-custom18jma8ppw3nhx5r4ap8clazz0dps7rv5u9xde7p
 EWOQ_X_ADDRESS=X-custom18jma8ppw3nhx5r4ap8clazz0dps7rv5u9xde7p
 
 # Development keys of the bridge: the private key is the number itself
-# (devKey in tools/bridge.go).
+# (dev_key in lib.sh, used in bridge.sh).
 BRIDGE_RECIPIENT_KEY=0x0000000000000000000000000000000000000000000000000000000000000008
 BRIDGE_RECIPIENT_ADDRESS=0xF1F6619B38A98d6De0800F1DefC0a6399eB6d30C
 MESSENGER_DEPLOYER_KEY=0x0000000000000000000000000000000000000000000000000000000000000009
@@ -85,7 +85,7 @@ ewoq() {
 }
 
 # relayer <l1-name>: the account of the bridge relayer of one L1, from the
-# relayer configuration that the Go tools wrote. The relayer pays its gas from
+# relayer configuration that bridge.sh wrote. The relayer pays its gas from
 # this key and names the same account as its reward address.
 relayer() {
     local config=$state/$1/bridge/relayer/config.json

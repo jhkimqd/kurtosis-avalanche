@@ -1,6 +1,6 @@
 # 0009. Pin every image and contract artifact
 
-Status: Accepted
+Status: Accepted. The second bullet of the decision, the tools image, is superseded by 0018.
 
 ## Context
 

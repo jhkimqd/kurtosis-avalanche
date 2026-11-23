@@ -26,10 +26,11 @@ def run(plan, args={}):
         state,
         json.encode(manifest),
     ]
-    tools.run(
+    tools.run_script(
         plan,
         "Preparing the relayer for messages between L1s",
-        ["lab", "icm-config"] + command_args,
+        "icm.sh",
+        ["config"] + command_args,
     )
     config = plan.store_service_files(
         name=RELAYER_NAME + "-config",
@@ -53,10 +54,11 @@ def run(plan, args={}):
             user=User(uid=0, gid=0),
         ),
     )
-    tools.run(
+    tools.run_script(
         plan,
         "Sending and verifying application messages between every pair of L1s",
-        ["lab", "icm-smoke"] + command_args,
+        "icm.sh",
+        ["smoke"] + command_args,
     )
     plan.store_service_files(
         name="nightly-results",

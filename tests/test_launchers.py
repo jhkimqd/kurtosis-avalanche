@@ -147,12 +147,24 @@ class BootstrapSizingTest(unittest.TestCase):
         self.assertEqual(node_count(validator_management="erc20-pos", validator_count=5), 10)
 
 
+def script_commands(plan):
+    """Returns each run of a setup script as [script, subcommand, arguments...].
+
+    The package runs `bash /fixtures/scripts/<script> <subcommand> ...` in the
+    tools service. The description script, which has no subcommand, is left out.
+    """
+    return [
+        [command[1].rsplit("/", 1)[1]] + command[2:]
+        for command in plan.commands()
+        if command[0] == "bash" and not command[1].endswith("/describe-networks.sh")
+    ]
+
+
 class DeploymentTest(unittest.TestCase):
     def run_package(self, args):
         plan = starlark.FakePlan()
         manifest = main.run(plan, args)
-        commands = [command for command in plan.commands() if command[0] == "lab"]
-        return plan, manifest, commands
+        return plan, manifest, script_commands(plan)
 
     def by_name(self, commands, name):
         return [command for command in commands if command[1] == name]
@@ -179,7 +191,7 @@ class DeploymentTest(unittest.TestCase):
              "l1-0-rpc-0", "l1-0-rpc-1", "l1-0-aggregator"] + EXPLORERS,
         )
         self.assertEqual(self.by_name(commands, "prepare")[0][3:], ["6", "2"])
-        # `lab create` receives the chain config and the subnet config as JSON.
+        # `l1.sh create` receives the chain config and the subnet config as JSON.
         self.assertEqual(
             [json.loads(argument) if argument[0] == "{" else argument for argument in self.by_name(commands, "create")[0][6:]],
             [{}, "false", {"warp-api-enabled": True, "pruning-enabled": False,
@@ -194,7 +206,7 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(convert[4:], ["self", constants.VALIDATOR_MANAGER_ADDRESS, "/state/network", "1000000", "2", "3"])
         self.assertEqual(
             [command[1] for command in commands],
-            ["prepare", "create", "convert", "wait", "manager", "run", "wait", "wait", "verify-rpcs"],
+            ["prepare", "create", "convert", "wait", "manager", "transfers", "wait", "wait", "rpcs"],
         )
         # The last command describes each network in the tools service with a
         # shell script, from the manifest. The package publishes the same files.
@@ -256,7 +268,7 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(self.by_name(commands, "prepare")[0][3:], ["13", "3"])
         self.assertEqual(self.by_name(commands, "convert")[0][7:], ["250000", "9", "10", "11", "12"])
         self.assertEqual([command[6] for command in self.by_name(commands, "migrate")], ["3", "4", "5", "6", "7"])
-        self.assertEqual(self.by_name(commands, "finalize-pos")[0][6:], ["native-pos", "3", "4", "5", "6", "7"])
+        self.assertEqual(self.by_name(commands, "finalize")[0][6:], ["native-pos", "3", "4", "5", "6", "7"])
         self.assertEqual(
             [kwargs["name"] for name, kwargs in plan.calls if name == "remove_service"], bootstrap
         )
@@ -276,15 +288,15 @@ class DeploymentTest(unittest.TestCase):
         # The commands of the L1 run in the order of its lifecycle.
         self.assertEqual(
             [command[1] for command in commands],
-            ["prepare", "create", "convert", "wait", "manager", "bridge-deploy", "bridge-activate"]
+            ["prepare", "create", "convert", "wait", "manager", "deploy", "activate"]
             + ["migrate"] * 5
-            + ["finalize-pos", "bridge-smoke", "run", "wait", "verify-rpcs"],
+            + ["finalize", "smoke", "transfers", "wait", "rpcs"],
         )
         # Each validator stakes only after its own node has started.
         order = [
-            kwargs["name"] if name == "add_service" else "stake-" + kwargs["recipe"].command[6]
+            kwargs["name"] if name == "add_service" else "stake-" + kwargs["recipe"].command[7]
             for name, kwargs in plan.calls
-            if name == "add_service" or (name == "exec" and kwargs["recipe"].command[1] == "migrate")
+            if name == "add_service" or (name == "exec" and kwargs["recipe"].command[2:3] == ["migrate"])
         ]
         for number, index in enumerate(range(3, 8)):
             self.assertEqual(
@@ -293,13 +305,13 @@ class DeploymentTest(unittest.TestCase):
         # The bootstrap nodes keep running for one more uptime tracker period
         # after their removal (see _wait_for_uptime_trackers).
         steps = [
-            name if name == "remove_service" else " ".join(kwargs["recipe"].command[:2])
+            name if name == "remove_service" else " ".join(kwargs["recipe"].command[-2:] if kwargs["recipe"].command[0] == "sleep" else kwargs["recipe"].command[1:3])
             for name, kwargs in plan.calls
             if name == "remove_service"
             or (name == "exec" and kwargs["recipe"].command[0] == "sleep")
-            or (name == "exec" and kwargs["recipe"].command[1] == "finalize-pos")
+            or (name == "exec" and kwargs["recipe"].command[2:3] == ["finalize"])
         ]
-        self.assertEqual(steps, ["lab finalize-pos", "sleep 65"] + ["remove_service"] * 4)
+        self.assertEqual(steps, ["/fixtures/scripts/staking.sh finalize", "sleep 65"] + ["remove_service"] * 4)
         self.assertGreater(constants.UPTIME_TRACKER_SYNC_SECONDS, 60)
         # The permanent nodes get the full resource limits, the temporary ones less.
         services = plan.services()
@@ -318,16 +330,16 @@ class DeploymentTest(unittest.TestCase):
             self.assertEqual(peers[name]["bootstrap-ids"], "<id>")
             self.assertEqual(peers[name]["bootstrap-ips"], "ip-of-primary-0:9651")
         # The final test sends real transfers.
-        self.assertEqual(self.by_name(commands, "run")[0][3], str(constants.SMOKE_TRANSACTION_COUNT))
+        self.assertEqual(self.by_name(commands, "transfers")[0][3], str(constants.SMOKE_TRANSACTION_COUNT))
         self.assertGreater(constants.SMOKE_TRANSACTION_COUNT, 0)
 
     def test_erc20_pos_passes_the_mode_to_the_staking_commands(self):
         args = {"l1": {"validator_management": "erc20-pos", "validator_count": 20}, "bridge": False}
         plan, manifest, commands = self.run_package(args)
         self.assertEqual({command[7] for command in self.by_name(commands, "migrate")}, {"erc20-pos"})
-        self.assertEqual(self.by_name(commands, "finalize-pos")[0][6], "erc20-pos")
+        self.assertEqual(self.by_name(commands, "finalize")[0][6], "erc20-pos")
         self.assertEqual(manifest["l1s"][0]["validator_management"], "erc20-pos")
-        self.assertNotIn("bridge-smoke", [command[1] for command in commands])
+        self.assertNotIn("bridge.sh", [command[0] for command in commands])
 
     def test_each_l1_gets_its_own_identities_and_chain_id(self):
         args = {"l1": {"count": 2, "validator_management": "poa", "validator_count": 1}, "bridge": False}
@@ -453,7 +465,7 @@ class ExplorerTest(unittest.TestCase):
         for wait in waits[1::2]:
             self.assertIn(".finished_indexing", wait["recipe"].extract["done"])
             self.assertEqual((wait["assertion"], wait["target_value"]), ("==", True))
-        # The L1 nodes trace and keep every state; `lab create` writes that
+        # The L1 nodes trace and keep every state; `l1.sh create` writes that
         # chain config for every node of the L1.
         chain_config = json.loads(self.by_name(plan, "create")[0][8])
         self.assertIn("debug-tracer", chain_config["eth-apis"])
@@ -470,7 +482,7 @@ class ExplorerTest(unittest.TestCase):
         self.assertEqual(manifest["explorers"], [])
 
     def by_name(self, plan, name):
-        return [command for command in plan.commands() if command[:2] == ["lab", name]]
+        return [command for command in script_commands(plan) if command[1] == name]
 
 
 class ObservabilityTest(unittest.TestCase):

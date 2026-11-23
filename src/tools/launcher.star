@@ -1,9 +1,11 @@
-"""The tools service: a container with the `lab` Go binary (see tools/main.go).
+"""The tools service: existing command-line tools for the work Starlark cannot do.
 
-The package runs `lab` commands in this service to generate node identities,
-sign transactions, and verify the result. `lab` records each step under /state,
-so the directory holds the complete history of a deployment. At the end, a
-shell script describes each network of the devnet in /opt/networks.
+The image (tools/Dockerfile) holds AvalancheGo, platform-cli, cast, curl, and
+jq. The package runs the shell scripts of static_files/scripts in this service
+to generate node identities, sign P-Chain and EVM transactions, and verify the
+result. The scripts record each step under /state, so the directory holds the
+complete history of a deployment. At the end, a script describes each network
+of the devnet in /opt/networks.
 """
 
 constants = import_module("../config/constants.star")
@@ -12,16 +14,18 @@ SERVICE_NAME = "tools"
 
 # Persistent state: one journal per transaction, plus all generated files.
 STATE_PATH = "/state"
-# Genesis, upgrade schedule, and node keys (written by `lab prepare`).
+# Genesis, upgrade schedule, and node keys (written by `network.sh prepare`).
 NETWORK_PATH = STATE_PATH + "/network"
 # Description of the devnet for its users, one directory per network: IDs, RPC
 # URLs, validators, genesis, and development accounts.
 DESCRIPTION_PATH = "/opt/networks"
-# The files of ./static_files. The tools read the base L1 genesis, the contract
-# artifacts, and the scripts; the observability files are for other services.
+# The files of ./static_files. The tools read the base L1 genesis, the upgrade
+# schedule, the contract artifacts, and the scripts; the observability files
+# are for other services.
 STATIC_FILES_PATH = "/fixtures"
-# The shell script that writes `DESCRIPTION_PATH` (needs bash, curl, and jq).
-DESCRIBE_SCRIPT = STATIC_FILES_PATH + "/scripts/describe-networks.sh"
+# The setup scripts (static_files/scripts). A user can change a script there
+# and run it again without a rebuild.
+SCRIPTS_PATH = STATIC_FILES_PATH + "/scripts"
 
 
 def launch(plan, args):
@@ -40,9 +44,9 @@ def launch(plan, args):
                 STATIC_FILES_PATH: static_files,
                 STATE_PATH: Directory(persistent_key="tools-state"),
             },
-            # `lab` signs only where this variable is set. It guards against
-            # an accidental run of the binary outside the tools service.
-            env_vars={"LAB_INSTANCE": "devnet"},
+            # The scripts sign only where this variable is set. It guards
+            # against an accidental run of a script outside the tools service.
+            env_vars={"TOOLS_INSTANCE": "devnet"},
             entrypoint=["sleep"],
             cmd=["infinity"],
         ),
@@ -56,6 +60,16 @@ def run(plan, description, command):
         description=description,
         recipe=ExecRecipe(command=command),
     )
+
+
+def run_script(plan, description, script, args):
+    """Runs a script of static_files/scripts in the tools service.
+
+    Args:
+        script: file name in static_files/scripts, for example "l1.sh".
+        args: the arguments of the script, a list of strings.
+    """
+    return run(plan, description, ["bash", SCRIPTS_PATH + "/" + script] + args)
 
 
 def read_json(plan, path, fields):
@@ -88,12 +102,13 @@ def generate_network(plan, node_count, primary_validator_count):
         struct(artifact, bootstrap_node_id): the files to mount at `/network`
         and the node ID of node 0, which every other node syncs from.
     """
-    run(
+    run_script(
         plan,
         "Generating the Primary Network genesis and {} node identities".format(
             node_count
         ),
-        ["lab", "prepare", NETWORK_PATH, str(node_count), str(primary_validator_count)],
+        "network.sh",
+        ["prepare", NETWORK_PATH, str(node_count), str(primary_validator_count)],
     )
     artifact = plan.store_service_files(
         name="network", service_name=SERVICE_NAME, src=NETWORK_PATH
@@ -113,10 +128,11 @@ def describe(plan, manifest):
     Returns:
         The files artifact `network-description` with the same files.
     """
-    run(
+    run_script(
         plan,
         "Describing each network of the devnet in {}".format(DESCRIPTION_PATH),
-        ["bash", DESCRIBE_SCRIPT, DESCRIPTION_PATH, json.encode(manifest)],
+        "describe-networks.sh",
+        [DESCRIPTION_PATH, json.encode(manifest)],
     )
     return plan.store_service_files(
         name="network-description", service_name=SERVICE_NAME, src=DESCRIPTION_PATH

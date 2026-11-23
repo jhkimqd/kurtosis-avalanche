@@ -62,10 +62,10 @@ class ReleaseTest(unittest.TestCase):
 
     def test_current_versions_come_from_repository_files(self):
         pins = watch.pins(ROOT)
-        self.assertEqual(len(pins), 10)
+        self.assertEqual(len(pins), 11)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for name in ("src/config/constants.star", ".github/actions/setup-kurtosis/action.yml", "contracts/Dockerfile"):
+            for name in ("src/config/constants.star", ".github/actions/setup-kurtosis/action.yml", "contracts/Dockerfile", "tools/Dockerfile"):
                 target = root / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text((ROOT / name).read_text())
@@ -76,7 +76,7 @@ class ReleaseTest(unittest.TestCase):
     def test_suffixed_cli_pin_is_not_silently_treated_as_stable(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for name in ("src/config/constants.star", ".github/actions/setup-kurtosis/action.yml", "contracts/Dockerfile"):
+            for name in ("src/config/constants.star", ".github/actions/setup-kurtosis/action.yml", "contracts/Dockerfile", "tools/Dockerfile"):
                 target = root / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text((ROOT / name).read_text())

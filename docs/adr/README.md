@@ -7,7 +7,7 @@ An ADR records one decision that shapes this package: the situation, the choice,
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions as ADRs |
 | [0002](0002-local-primary-network.md) | Run a local Primary Network with a fixed network ID |
 | [0003](0003-package-layout.md) | Lay out the package like kurtosis-pos and kurtosis-cdk |
-| [0004](0004-journaled-go-tools.md) | Sign transactions in a Go tool that journals every step |
+| [0004](0004-journaled-go-tools.md) | Sign transactions in a Go tool that journals every step (superseded by 0018) |
 | [0005](0005-l1-lifecycle.md) | Follow the ACP-77 lifecycle; start a PoS L1 with bootstrap validators |
 | [0006](0006-configuration-passthrough.md) | Pass AvalancheGo options through unchanged and reject managed ones |
 | [0007](0007-generated-option-references.md) | Generate the option references from the pinned release |
@@ -21,6 +21,7 @@ An ADR records one decision that shapes this package: the situation, the choice,
 | [0015](0015-fixed-rpc-host-ports.md) | Publish the first node of each chain on a fixed host port |
 | [0016](0016-network-description-script.md) | Describe each network in the tools service with a shell script |
 | [0017](0017-explorer-by-default.md) | Run the block explorers by default |
+| [0018](0018-existing-tools-and-shell-scripts.md) | Sign with platform-cli and cast from shell scripts, not a Go tool of the package |
 
 ## Add an ADR
 

@@ -24,7 +24,8 @@ kurtosis lint -c .                            # check the docstrings
 python3 -m unittest discover -s tests         # unit tests (seconds)
 bash scripts/check-package.sh                 # lint, then plan every arguments file (starts no node)
 bash scripts/check-alloy.sh                   # load the Alloy pipelines in the pinned Alloy
-bash scripts/build.sh                         # build the tools image; the build runs the Go tests
+shellcheck -x -P static_files/scripts static_files/scripts/*.sh   # lint the setup scripts
+bash scripts/build.sh                         # build the tools image (released tools only)
 python3 scripts/gen-config-reference.py       # regenerate node.yml, l1-chain.yml, c-chain.yml
 python3 scripts/gen-dashboards.py             # regenerate the Grafana dashboards
 bash scripts/run.sh examples/poa.yml          # live run in a new enclave
@@ -36,7 +37,7 @@ The tests that read YAML need PyYAML and skip without it. A change is not verifi
 
 The generator needs Docker, the pinned node images, and an AvalancheGo checkout in `../avalanchego` that contains the pinned commit.
 
-Run a live deployment before you report a change to `src/` or `tools/` as working. A dry run does not execute `lab`, so it cannot find a transaction or timing error.
+Run a live deployment before you report a change to `src/`, `tools/`, or `static_files/scripts/` as working. A dry run does not execute the setup scripts, so it cannot find a transaction or timing error.
 
 ## Repository map
 
@@ -53,8 +54,9 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | `src/l1/signature_aggregator.star`, `src/l1/bridge.star` | Per-L1 support services. |
 | `src/observability/launcher.star` | The observability stack. One file per service: `alloy.star` (collector), `prometheus.star` (metrics store), `loki.star` (log store), `grafana.star` (dashboards). |
 | `src/explorer/launcher.star` | The optional Blockscout explorers and their PostgreSQL database. |
-| `src/tools/launcher.star` | The tools service, the helpers that run `lab` in it, and the run of `describe-networks.sh`. |
-| `tools/` | Go program `lab`: keys, genesis, transactions, checks. One file per concern; `main.go` lists the commands. |
+| `src/tools/launcher.star` | The tools service, the helpers that run the setup scripts in it (`run_script`), and the run of `describe-networks.sh`. |
+| `tools/` | The Dockerfile of the tools image: AvalancheGo, `platform-cli`, `cast`, curl, and jq. No code of the package (ADR 0018). |
+| `static_files/scripts/` | The setup scripts that run in the tools service: `network.sh` (identities, genesis), `l1.sh` (create, convert, ValidatorManager), `staking.sh` (PoA to PoS), `bridge.sh`, `checks.sh`, `icm.sh` (nightly), `describe-networks.sh`; shared helpers in `lib.sh`. |
 | `static_files/` | Base L1 genesis, the shell scripts that run in the tools service (`static_files/scripts/`), the contract artifacts (`static_files/contracts/hashes.json` pins them), the Alloy pipelines (`static_files/observability/alloy/`), and the generated Grafana dashboards (`static_files/observability/grafana/dashboards/`). |
 | `contracts/` | Sources of the two test tokens, the nightly message receiver, and the reproducible artifact build. |
 | `examples/` | The two documented networks: `poa.yml`, `pos.yml`. |
@@ -74,8 +76,9 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | Add or change an argument | `input_parser.star` (default and comment) → `sanity_check.star` → `examples/pos.yml` → `README.md` table → `tests/test_config.py` |
 | Change a default AvalancheGo flag | `DEFAULT_NODE_CONFIG` in `input_parser.star` → regenerate `docs/config/` |
 | Take control of an AvalancheGo flag | `src/node/launcher.star` → `MANAGED_NODE_FLAGS` in `sanity_check.star` → regenerate `docs/config/` |
-| Bump a node image | `IMAGES` in `constants.star` → the commit in `tools/Dockerfile` and the version in `tools/go.mod` → regenerate `docs/config/` and review its hand-written files → the version in `README.md`, `AGENTS.md`, and `examples/pos.yml` (a test compares them) → live run of both examples |
-| Add a `lab` command | `tools/<concern>.go` → the command list in `tools/main.go` → the caller in `src/` |
+| Bump a node image | `IMAGES` in `constants.star` → the `COPY --from` digest in `tools/Dockerfile` (a test compares them) → `static_files/upgrade.json` if the release adds an upgrade → regenerate `docs/config/` and review its hand-written files → the version and the commit in `README.md`, `AGENTS.md`, and `examples/pos.yml` (a test compares them) → live run of both examples |
+| Add a setup step | a function and a subcommand in `static_files/scripts/<concern>.sh` → its caller in `src/` (`tools.run_script`) → `tests/test_scripts.py` for new encoding helpers or contract methods |
+| Bump `platform-cli` or `cast` | the version and both SHA-256 sums in `tools/Dockerfile` (cast follows the Foundry version of `contracts/Dockerfile`) → live run of both examples |
 | Add a service | `src/<name>/launcher.star` with `launch(plan, args, ...)` → `main.star` or `src/l1/launcher.star` → image in `IMAGES` → the planning function of the launcher (`planned_nodes`, `planned`), if the service serves metrics |
 | Add or change a dashboard panel | `scripts/gen-dashboards.py` → `python3 scripts/gen-dashboards.py` → commit the JSON → live run → `bash scripts/check-observability.sh <enclave>`, and look at the panel with data |
 | Change what Alloy collects | `static_files/observability/alloy/` → the target files in `src/observability/alloy.star` → `bash scripts/check-alloy.sh` → live run |
@@ -122,12 +125,14 @@ These follow kurtosis-pos (`src/config/`, launcher contract) and kurtosis-cdk (`
 - Stay within the syntax that Starlark and Python share, so that `tests/starlark.py` can load the module (ADR 0008).
 - Give every `plan.exec` and `plan.wait` a `description` that states what happens in plain words.
 
-## Go conventions (`tools/`)
+## Script conventions (`static_files/scripts/`)
 
-- `lab` signs only for network `88888` (`localOnly` in `rpc.go`) and only where `LAB_INSTANCE` is set, which is the tools service (`main.go`). Do not weaken either check.
-- Every setup transaction goes through `issue` (P-Chain) or `evmTxAs` (EVM). Both write a journal before they send, so a repeated command resends the same bytes. Only the test transfers of `lab run` have no journal.
+- Reuse a released tool before you write code: `platform-cli` for P-Chain transactions, `cast` for EVM transactions and ABI encoding, curl and jq for JSON-RPC and JSON. Bash in `lib.sh` only fills gaps that no tool covers (ADR 0018).
+- The scripts sign only for network `88888` (`local_only` in `lib.sh`) and only where `TOOLS_INSTANCE` is set, which is the tools service. Do not weaken either check.
+- Every setup transaction goes through `pchain_step` (P-Chain) or `evm_tx` (EVM). `evm_tx` writes the signed bytes to a journal before it sends them, so a repeated step resends the same bytes. `pchain_step` writes a pending journal first; give it a check that finds the result on the P-Chain where one exists. Only the test transfers of `checks.sh transfers` have no journal.
 - Give each journal a stable name. A new step needs a new name.
-- Run `gofmt`. The image build runs `go test ./...`; CI adds `-race` and `go vet`.
+- A script sources `lib.sh` (`set -euo pipefail`, `inherit_errexit`) and runs its `main` only when executed, so that a test can source its functions.
+- Run `shellcheck -x -P static_files/scripts static_files/scripts/*.sh`; CI runs it too.
 
 ## Comments and documentation
 
@@ -147,8 +152,8 @@ These follow kurtosis-pos (`src/config/`, launcher contract) and kurtosis-cdk (`
 1. `kurtosis lint .` reports nothing.
 2. `python3 -m unittest discover -s tests` passes with PyYAML installed.
 3. `bash scripts/check-package.sh` plans every arguments file.
-4. `bash scripts/build.sh` passes if `tools/` changed. `bash scripts/check-alloy.sh` passes if `static_files/observability/alloy/` changed.
-5. `bash scripts/run.sh examples/poa.yml` passes if `src/` or `tools/` changed. Also run `examples/pos.yml` if the change touches staking, the bridge, node config, or the observability stack; then `bash scripts/check-observability.sh <enclave>` passes. Both examples run the explorers; then `bash scripts/check-devnet.sh <enclave>` passes.
+4. `bash scripts/build.sh` passes if `tools/` changed. shellcheck passes if `static_files/scripts/` changed. `bash scripts/check-alloy.sh` passes if `static_files/observability/alloy/` changed.
+5. `bash scripts/run.sh examples/poa.yml` passes if `src/`, `tools/`, or `static_files/scripts/` changed. Also run `examples/pos.yml` if the change touches staking, the bridge, node config, or the observability stack; then `bash scripts/check-observability.sh <enclave>` passes. Both examples run the explorers; then `bash scripts/check-devnet.sh <enclave>` passes.
 6. Remove the enclaves that you started.
 
 ## Decisions and commits

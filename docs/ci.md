@@ -2,7 +2,7 @@
 
 Pushes and pull requests run two workflows on GitHub-hosted Ubuntu runners:
 
-- **package checks** runs the Python and Go tests, checks contract artifacts, lints Starlark, plans every arguments file, and loads the Alloy pipelines in the pinned Alloy.
+- **package checks** runs the Python tests, lints the setup scripts with shellcheck, builds the tools image and generates node identities in it, checks contract artifacts, lints Starlark, plans every arguments file, and loads the Alloy pipelines in the pinned Alloy.
 - **functionality tests** deploys the PoA, native-token PoS, ERC-20 PoS, and two-L1 networks. It also runs nightly at 03:17 UTC and on manual dispatch.
 
 Each functionality job deploys a fresh enclave, then runs `scripts/check-devnet.sh` and `scripts/check-observability.sh`. The checks read the deployment manifest to discover the configured validators and L1s. They verify validator registration, contract ownership, transfers, contract deployment and calls, block production, and agreement between L1 nodes. The package itself also tests bridge transfers when the bridge is enabled.

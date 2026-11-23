@@ -14,7 +14,7 @@ Three levels of tests:
 2. **Dry runs** (`scripts/check-package.sh`). The real Kurtosis interpreter lints the package and plans every file in `examples/` and `.github/configs/`.
 3. **Live runs** (`scripts/run.sh`, the integration workflow). Each deployment ends with its own checks: the validator set on the P-Chain, a bridge transfer, test transfers, and agreement of the RPC nodes.
 
-The Go tools have unit tests that run in the image build.
+The bash helpers of the setup scripts have unit tests in Python (`tests/test_scripts.py`).
 
 ## Consequences
 

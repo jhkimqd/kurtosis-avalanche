@@ -18,7 +18,7 @@ The tools image installs curl and jq from the Debian snapshot that its base imag
 
 - A user reads the IDs, URLs, and keys of a network from one directory, without an API call.
 - The script runs from `/fixtures/scripts/`, mounted from `static_files/`; a user can change it and run it again without a rebuild. It is a snapshot: it does not follow later changes on the network until it runs again.
-- The script knows the public development keys of the bridge as constants. A change to `devKey` in `tools/bridge.go` must change the script too. It reads the relayer key from the relayer configuration that the Go tools write.
+- The script knows the public development keys of the bridge as constants. A change to the development keys in `static_files/scripts/bridge.sh` must change the script too. It reads the relayer key from the relayer configuration that the Go tools write.
 - An image build needs `snapshot.debian.org`.
 
 ## Alternatives
