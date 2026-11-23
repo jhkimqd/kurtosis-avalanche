@@ -48,9 +48,11 @@ def pins(root):
         result.append((name, repo, prefix, match[1]))
     setup = (root / ".github/actions/setup-kurtosis/action.yml").read_text()
     foundry = (root / "contracts/Dockerfile").read_text()
+    tools = (root / "tools/Dockerfile").read_text()
     for name, repo, text, pattern in [
         ("Kurtosis CLI", "kurtosis-tech/kurtosis", setup, r"(?m)^[ \t]*KURTOSIS_VERSION:[ \t]+(\S+)[ \t]*$"),
         ("Foundry", "foundry-rs/foundry", foundry, r"FROM ghcr.io/foundry-rs/foundry:(v[\d.]+)@"),
+        ("platform-cli", "ava-labs/platform-cli", tools, r"(?m)^ARG PLATFORM_CLI_VERSION=(\S+)$"),
     ]:
         match = re.search(pattern, text)
         if not match:
