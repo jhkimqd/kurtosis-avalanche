@@ -115,7 +115,7 @@ Pass your YAML file with `--args-file`. Without one, the package uses the defaul
 | `logs` | Collect logs: every node writes its log files to a shared volume; Alloy reads them and Loki stores the lines. |
 | `dashboards` | Run Grafana with dashboards for the collected metrics and logs. |
 | `rpc_port` | Fixed host port of the P-, X-, and C-Chain RPC; L1 `n` takes the port `rpc_port + 1 + n`. `0` picks random ports. |
-| `explorer` | Run a Blockscout block explorer for the C-Chain and each L1. Off by default. |
+| `explorer` | Run a Blockscout block explorer for the C-Chain and each L1. On by default; `false` saves about 600 MB of memory per chain. |
 | `explorer_port` | First host port of the explorers; each explorer takes two ports. |
 | `images` | Override service images. |
 
@@ -144,7 +144,7 @@ Grafana opens on an overview of the devnet. Further dashboards cover one L1, the
 
 ## Explore
 
-With `explorer: true`, the package runs a [Blockscout](https://github.com/blockscout/blockscout) explorer for the C-Chain and for each L1. Open the C-Chain explorer at http://localhost:28000 and the explorer of L1 `n` at port `28000 + 2 × (n + 1)`. The deployment output lists every address under `explorers`. The P-Chain and the X-Chain are not EVM chains and have no explorer. See the [explorer guide](docs/explorer.md) for what the explorer shows, what it changes on the nodes, and its limits.
+By default, the package runs a [Blockscout](https://github.com/blockscout/blockscout) explorer for the C-Chain and for each L1. Open the C-Chain explorer at http://localhost:28000 and the explorer of L1 `n` at port `28000 + 2 × (n + 1)`. The deployment output lists every address under `explorers`. The P-Chain and the X-Chain are not EVM chains and have no explorer. See the [explorer guide](docs/explorer.md) for what the explorer shows, what it changes on the nodes, and its limits.
 
 ## Endpoints and accounts
 

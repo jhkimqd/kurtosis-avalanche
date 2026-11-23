@@ -2,13 +2,13 @@
 
 The package can run a [Blockscout](https://github.com/blockscout/blockscout) block explorer for each EVM chain of the devnet: the C-Chain and every L1. The explorer is a lightweight proof of concept, not a production explorer. It shows blocks, transactions, the internal calls of each transaction (one contract calling another), the raw call trace, event logs, token transfers, ERC-20 and ERC-721 tokens with their holders, and account balances. "Limits" below lists what it does not do.
 
-The explorer is off by default. Turn it on in your arguments file:
+The explorer is on by default. Turn it off in your arguments file, to save its memory and keep the upstream pruning of old state on the nodes:
 
 ```yaml
-explorer: true
+explorer: false
 ```
 
-ADR 0014 explains the choice of Blockscout and of its version.
+ADR 0014 explains the choice of Blockscout and of its version, and ADR 0017 why it runs by default.
 
 ## Open an explorer
 

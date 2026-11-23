@@ -1,6 +1,6 @@
 # 0014. Add an optional Blockscout explorer for each EVM chain, pinned to its newest public GPL images
 
-Status: Accepted
+Status: Accepted. Its default (`explorer: false`) is superseded by [0017](0017-explorer-by-default.md).
 
 ## Context
 

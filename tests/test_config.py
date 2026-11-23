@@ -24,7 +24,7 @@ class DefaultsTest(unittest.TestCase):
         self.assertEqual(args["l1"]["validator_count"], 5)
         self.assertEqual(args["images"], constants.IMAGES)
         self.assertTrue(args["bridge"] and args["metrics"] and args["logs"] and args["dashboards"])
-        self.assertFalse(args["explorer"])
+        self.assertTrue(args["explorer"])
         self.assertEqual(args["explorer_port"], 28000)
         self.assertEqual(args["rpc_port"], 29650)
 
@@ -41,7 +41,7 @@ class DefaultsTest(unittest.TestCase):
         before = json.dumps(input_parser.DEFAULT_ARGS, sort_keys=True)
         parse({"node_config": {"log-level": "debug"}, "l1": {"chain_config": {"a": 1}}})
         self.assertEqual(json.dumps(input_parser.DEFAULT_ARGS, sort_keys=True), before)
-        self.assertEqual(parse({})["l1"]["chain_config"], {"warp-api-enabled": True})
+        self.assertEqual(parse({"explorer": False})["l1"]["chain_config"], {"warp-api-enabled": True})
 
 
 class ValidationTest(unittest.TestCase):
@@ -147,7 +147,7 @@ class ValidationTest(unittest.TestCase):
         for args in (
             {"rpc_port": 27998, "explorer": True},
             {"rpc_port": 28004, "explorer": True},
-            {"rpc_port": 28000},
+            {"rpc_port": 28000, "explorer": False},
         ):
             parse(args)
 
@@ -168,7 +168,7 @@ class ValidationTest(unittest.TestCase):
         ):
             self.assert_rejected(dict(args, explorer=True))
             # Without the explorer, the same values are accepted.
-            parse(args)
+            parse(dict(args, explorer=False))
         # The C-Chain reads the deprecated `eth-apis` only without `apis`.
         parse({"explorer": True, "primary_network": {"c_chain_config": {"apis": ["trace"], "eth-apis": ["eth"]}}})
         full = list(input_parser.EXPLORER_L1_ETH_APIS)
@@ -283,8 +283,10 @@ class NodeConfigTest(unittest.TestCase):
                       "primary_network": {"c_chain_config": {"log-level": "debug"}}})
         self.assertEqual(args["l1"]["chain_config"]["eth-apis"], apis)
         self.assertEqual(args["primary_network"]["c_chain_config"], {"pruning-enabled": False, "log-level": "debug"})
+        # The explorer runs by default.
+        self.assertEqual(parse({})["l1"]["chain_config"], parse({"explorer": True})["l1"]["chain_config"])
         # Without the explorer, nothing changes.
-        args = parse({})
+        args = parse({"explorer": False})
         self.assertEqual(args["l1"]["chain_config"], {"warp-api-enabled": True})
         self.assertEqual(args["primary_network"]["c_chain_config"], {})
         # The parsed list is a copy: changing it leaves the constant alone.
@@ -296,6 +298,7 @@ class NodeConfigTest(unittest.TestCase):
             {
                 "primary_network": {"c_chain_config": {"apis": ["chain"]}},
                 "l1": {"chain_config": {"log-level": "debug"}},
+                "explorer": False,
             }
         )
         self.assertEqual(args["primary_network"]["c_chain_config"], {"apis": ["chain"]})
@@ -303,7 +306,7 @@ class NodeConfigTest(unittest.TestCase):
             args["l1"]["chain_config"], {"warp-api-enabled": True, "log-level": "debug"}
         )
         # A package default of the chain config can be overridden.
-        args = parse({"l1": {"chain_config": {"warp-api-enabled": False}}})
+        args = parse({"l1": {"chain_config": {"warp-api-enabled": False}}, "explorer": False})
         self.assertEqual(args["l1"]["chain_config"], {"warp-api-enabled": False})
 
 

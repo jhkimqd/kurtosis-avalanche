@@ -167,8 +167,9 @@ rpc_port: 29650
 # chain, an indexer and a web app: about 600 MB of memory per chain. The
 # P-Chain and the X-Chain are not EVM chains; no explorer covers them. With
 # `explorer: true` the nodes keep the state of every block, and the L1 nodes
-# serve the `debug_trace*` methods: docs/explorer.md.
-explorer: false
+# serve the `debug_trace*` methods: docs/explorer.md. false turns the explorers
+# off and keeps the upstream pruning of old state.
+explorer: true
 
 # First host port of the explorers, from 1024. Each explorer takes two ports
 # in a row, its web app then its API, so the last port is 28000 + 2 * (number
