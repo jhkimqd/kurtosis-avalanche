@@ -10,6 +10,7 @@
 #   4. Transactions on the C-Chain and on each L1: a transfer from the funded
 #      account, a contract deployment, contract calls, and new blocks.
 #   5. Every node of an L1 holds the same latest block.
+#      With a fixed `rpc_port`, the chain also answers on its host URL.
 #   6. With `explorer`, each explorer holds the transactions of step 4 and
 #      their token transfer, the internal calls of a contract that makes them,
 #      and reports its indexing finished; its web app answers.
@@ -56,6 +57,15 @@ api() {
     curl -s -m 10 -X POST -H 'content-type: application/json' \
         --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"$3\",\"params\":$4}" "$(<"$address")$2" |
         jq -c .result 2>/dev/null || true
+}
+
+# check_host_rpc <url-or-null> <chain-id>: with a fixed `rpc_port`, the chain
+# answers on this machine at the URL of the manifest.
+check_host_rpc() {
+    [[ $1 != null ]] || return 0
+    check "EVM chain ID at $1" "$(curl -s -m 10 -X POST -H 'content-type: application/json' \
+        --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' "$1" |
+        jq -r '.result // empty' 2>/dev/null | xargs -r printf '%d' 2>/dev/null || true)" "$2"
 }
 
 # cast runs inside the enclave network. It reaches a node by its service name,
@@ -120,6 +130,14 @@ if [[ $balance =~ ^[1-9][0-9]*$ ]]; then pass "X-Chain balance of the EWOQ accou
 
 echo "C-Chain"
 check_evm "$(jq -r .primary_network.c_chain_rpc_url "$manifest")" "$(jq -r .primary_network.c_chain_id "$manifest")"
+check_host_rpc "$(jq -r .primary_network.host.c_chain_rpc_url "$manifest")" "$(jq -r .primary_network.c_chain_id "$manifest")"
+host_p=$(jq -r .primary_network.host.p_chain_rpc_url "$manifest")
+if [[ $host_p != null ]]; then
+    height=$(curl -s -m 10 -X POST -H 'content-type: application/json' \
+        --data '{"jsonrpc":"2.0","id":1,"method":"platform.getHeight","params":{}}' "$host_p" |
+        jq -r '.result.height // empty' 2>/dev/null || true)
+    if [[ $height =~ ^[0-9]+$ ]]; then pass "P-Chain height at $host_p: $height"; else fail "no P-Chain height at $host_p"; fi
+fi
 
 # ── 2 to 5. Each L1 ──────────────────────────────────────────────────────────
 validator_count=$(jq -r .args.l1.validator_count "$manifest")
@@ -151,6 +169,7 @@ for ((i = 0; i < $(jq '.l1s | length' "$manifest"); i++)); do
 
     # 4. Transactions.
     check_evm "$url" "$(l1 evm_chain_id)"
+    check_host_rpc "$(l1 host.rpc_url)" "$(l1 evm_chain_id)"
 
     # 5. Every validator and RPC node reports the same latest block. A node
     #    can be a moment behind, so the check asks up to 30 times.

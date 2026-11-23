@@ -18,6 +18,7 @@ An ADR records one decision that shapes this package: the situation, the choice,
 | [0012](0012-daily-nightly-icm-tests.md) | Run daily release reports and nightly application delivery tests |
 | [0013](0013-observability-stack.md) | Collect metrics and logs with Alloy, and show them in Grafana |
 | [0014](0014-block-explorer.md) | Add an optional Blockscout explorer for each EVM chain, pinned to its newest public GPL images |
+| [0015](0015-fixed-rpc-host-ports.md) | Publish the first node of each chain on a fixed host port |
 
 ## Add an ADR
 

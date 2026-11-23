@@ -201,6 +201,31 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(manifest["primary_network"]["c_chain_ws_url"], "ws://primary-0:9650/ext/bc/C/ws")
         self.assertEqual(manifest["observability"], {})
         self.assertFalse([name for name, _ in plan.calls if name == "remove_service"])
+        # The first node of each chain serves its API on a fixed host port.
+        services = plan.services()
+        public = {
+            name: service.public_ports["rpc"].number
+            for name, service in services.items()
+            if getattr(service, "public_ports", None)
+        }
+        self.assertEqual(public, {"primary-0": 29650, "l1-0-rpc-0": 29651})
+        self.assertEqual(
+            manifest["primary_network"]["host"],
+            {
+                "rpc_url": "http://127.0.0.1:29650",
+                "p_chain_rpc_url": "http://127.0.0.1:29650/ext/bc/P",
+                "x_chain_rpc_url": "http://127.0.0.1:29650/ext/bc/X",
+                "c_chain_rpc_url": "http://127.0.0.1:29650/ext/bc/C/rpc",
+                "c_chain_ws_url": "ws://127.0.0.1:29650/ext/bc/C/ws",
+            },
+        )
+        self.assertEqual(
+            l1["host"],
+            {
+                "rpc_url": "http://127.0.0.1:29651/ext/bc/<blockchain_id>/rpc",
+                "ws_url": "ws://127.0.0.1:29651/ext/bc/<blockchain_id>/ws",
+            },
+        )
 
     def test_pos_defaults(self):
         plan, manifest, commands = self.run_package({})
@@ -297,6 +322,16 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual([command[5] for command in self.by_name(commands, "create")], ["77777", "77778"])
         self.assertEqual([l1["name"] for l1 in manifest["l1s"]], ["l1-0", "l1-1"])
         self.assertIn("l1-1-rpc-0", plan.services())
+        self.assertEqual(plan.services()["l1-1-rpc-0"].public_ports["rpc"].number, 29652)
+        self.assertEqual(manifest["l1s"][1]["host"]["rpc_url"].split("/ext")[0], "http://127.0.0.1:29652")
+
+    def test_rpc_port_zero_leaves_every_port_to_kurtosis(self):
+        args = {"l1": {"validator_management": "poa", "validator_count": 1}, "bridge": False, "rpc_port": 0}
+        plan, manifest, commands = self.run_package(args)
+        for name, service in plan.services().items():
+            self.assertFalse(getattr(service, "public_ports", None), name)
+        self.assertNotIn("host", manifest["primary_network"])
+        self.assertNotIn("host", manifest["l1s"][0])
 
 
 class ExplorerTest(unittest.TestCase):

@@ -114,6 +114,7 @@ Pass your YAML file with `--args-file`. Without one, the package uses the defaul
 | `metrics` | Collect metrics: Alloy scrapes every node, relayer, and signature aggregator; Prometheus stores the samples. |
 | `logs` | Collect logs: every node writes its log files to a shared volume; Alloy reads them and Loki stores the lines. |
 | `dashboards` | Run Grafana with dashboards for the collected metrics and logs. |
+| `rpc_port` | Fixed host port of the P-, X-, and C-Chain RPC; L1 `n` takes the port `rpc_port + 1 + n`. `0` picks random ports. |
 | `explorer` | Run a Blockscout block explorer for the C-Chain and each L1. Off by default. |
 | `explorer_port` | First host port of the explorers; each explorer takes two ports. |
 | `images` | Override service images. |
@@ -147,14 +148,16 @@ With `explorer: true`, the package runs a [Blockscout](https://github.com/blocks
 
 ## Endpoints and accounts
 
-`kurtosis enclave inspect avalanche` lists services and their published ports. Use a node's `rpc` port with the paths below. The deployment output prints each L1's blockchain ID.
+With the default `rpc_port: 29650`, the first node of each chain answers on a fixed port of this machine. The deployment output lists these URLs under `host`, with each L1's blockchain ID.
 
-| Chain | RPC path | EVM chain ID |
+| Chain | URL on this machine | EVM chain ID |
 | --- | --- | --- |
-| P-Chain | `/ext/bc/P` | Not applicable |
-| X-Chain | `/ext/bc/X` | Not applicable |
-| C-Chain | `/ext/bc/C/rpc` | `88888` |
-| L1 | `/ext/bc/<blockchain-id>/rpc` on an `l1-<i>-rpc-<n>` node | `77777` for the first L1 by default |
+| P-Chain | `http://127.0.0.1:29650/ext/bc/P` | Not applicable |
+| X-Chain | `http://127.0.0.1:29650/ext/bc/X` | Not applicable |
+| C-Chain | `http://127.0.0.1:29650/ext/bc/C/rpc` | `88888` |
+| L1 `n` | `http://127.0.0.1:<29651 + n>/ext/bc/<blockchain-id>/rpc` | `77777 + n` by default |
+
+A WebSocket URL replaces `http` with `ws` and `/rpc` with `/ws`. Every other node gets a random port: `kurtosis enclave inspect avalanche` lists them, and `kurtosis port print avalanche <service> rpc` prints one. Add the paths above to it.
 
 The Avalanche network ID is `88888`. The public development account, EWOQ, is funded on every chain:
 

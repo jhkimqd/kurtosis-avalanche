@@ -151,6 +151,16 @@ logs: true
 # No login is needed to look. docs/observability.md describes the dashboards.
 dashboards: true
 
+# Fixed port on this machine for the RPC endpoints, from 1024. The first
+# Primary Network validator takes this port for the P-, X-, and C-Chain:
+#   C-Chain  http://127.0.0.1:29650/ext/bc/C/rpc
+#   P-Chain  http://127.0.0.1:29650/ext/bc/P
+# The first RPC node of L1 n takes 29650 + 1 + n:
+#   L1 0     http://127.0.0.1:29651/ext/bc/<blockchain ID>/rpc
+# The other nodes get random ports (`kurtosis enclave inspect`). 0 gives every
+# node a random port; use it, or another value, to run two devnets at once.
+rpc_port: 29650
+
 # Block explorer. One Blockscout explorer for each EVM chain: the C-Chain and
 # every L1. Each indexes its chain from block 0, with internal transactions,
 # token transfers, and event logs. It adds a PostgreSQL database and, per

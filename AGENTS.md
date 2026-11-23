@@ -96,6 +96,7 @@ Run a live deployment before you report a change to `src/` or `tools/` as workin
 | Funded account (EWOQ) | `0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC` |
 | EWOQ private key | `0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027` (public; devnet only) |
 | ValidatorManager on every L1 | `0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25` |
+| RPC on the host (`rpc_port`) | P-, X-, C-Chain at http://127.0.0.1:29650 (`/ext/bc/C/rpc`), L1 `n` at port `29651 + n` (`/ext/bc/<blockchain-id>/rpc`) |
 | Grafana | `kurtosis port print <enclave> grafana http`; no login to look, `admin` / `admin` to edit |
 | Explorers (`explorer: true`) | C-Chain at http://localhost:28000, L1 `n` at port `28000 + 2 × (n + 1)`; API on the next port |
 

@@ -26,6 +26,7 @@ class DefaultsTest(unittest.TestCase):
         self.assertTrue(args["bridge"] and args["metrics"] and args["logs"] and args["dashboards"])
         self.assertFalse(args["explorer"])
         self.assertEqual(args["explorer_port"], 28000)
+        self.assertEqual(args["rpc_port"], 29650)
 
     def test_a_key_without_a_value_keeps_its_default(self):
         # YAML parses a key that holds only comments as None.
@@ -126,6 +127,29 @@ class ValidationTest(unittest.TestCase):
         ):
             self.assert_rejected(dict(args, explorer=True))
         self.assertEqual(parse({"explorer": True, "explorer_port": 65530, "l1": {"count": 2}})["explorer_port"], 65530)
+
+    def test_rpc_port(self):
+        for args in (
+            {"rpc_port": "29650"},
+            {"rpc_port": True},
+            {"rpc_port": -1},
+            {"rpc_port": 1023},
+            # Two L1s need three host ports: 65533..65535 is the last range.
+            {"rpc_port": 65534, "l1": {"count": 2}},
+            # The explorers take 28000..28003 with one L1.
+            {"rpc_port": 28003, "explorer": True},
+            {"rpc_port": 27999, "explorer": True},
+        ):
+            self.assert_rejected(args)
+        self.assertEqual(parse({"rpc_port": 65533, "l1": {"count": 2}})["rpc_port"], 65533)
+        self.assertEqual(parse({"rpc_port": 0})["rpc_port"], 0)
+        # Adjacent ranges do not overlap, and without explorers any range fits.
+        for args in (
+            {"rpc_port": 27998, "explorer": True},
+            {"rpc_port": 28004, "explorer": True},
+            {"rpc_port": 28000},
+        ):
+            parse(args)
 
     def test_explorer_rejects_chain_configs_that_hide_data(self):
         for args in (
