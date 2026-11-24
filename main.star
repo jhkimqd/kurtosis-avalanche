@@ -78,9 +78,6 @@ def run(plan, args={}):
         "c_chain_ws_url": primary.c_chain_ws_url,
         "c_chain_id": constants.C_CHAIN_ID,
     }
-    # The same URLs on this machine, through the fixed port of `rpc_port`.
-    if primary.host:
-        primary_manifest["host"] = primary.host
     manifest = {
         "primary_network": primary_manifest,
         "l1s": l1_manifests,
@@ -95,7 +92,8 @@ def run(plan, args={}):
             ]
             if url
         },
-        # One explorer per EVM chain, with its addresses on the host.
+        # One explorer per EVM chain. Its address on this machine is the
+        # published port of its service: scripts/endpoints.sh prints it.
         "explorers": explorers,
         "args": args,
     }

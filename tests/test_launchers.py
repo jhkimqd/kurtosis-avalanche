@@ -22,7 +22,8 @@ L1 = starlark.SimpleNamespace(
 # The services of the observability stack, in the order in which they start.
 STACK = ["prometheus", "loki", "alloy", "grafana"]
 # The explorer services of one L1, which start after the L1s by default.
-EXPLORERS = ["explorer-db", "c-chain-explorer-api", "c-chain-explorer", "l1-0-explorer-api", "l1-0-explorer"]
+EXPLORERS = ["explorer-db", "c-chain-explorer-api", "c-chain-explorer-web", "c-chain-explorer",
+             "l1-0-explorer-api", "l1-0-explorer-web", "l1-0-explorer"]
 
 
 class NodeTest(unittest.TestCase):
@@ -228,31 +229,11 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(manifest["primary_network"]["c_chain_ws_url"], "ws://primary-0:9650/ext/bc/C/ws")
         self.assertEqual(manifest["observability"], {})
         self.assertFalse([name for name, _ in plan.calls if name == "remove_service"])
-        # The first node of each chain serves its API on a fixed host port.
-        services = plan.services()
-        public = {
-            name: service.public_ports["rpc"].number
-            for name, service in services.items()
-            if getattr(service, "public_ports", None) and name not in EXPLORERS
-        }
-        self.assertEqual(public, {"primary-0": 29650, "l1-0-rpc-0": 29651})
-        self.assertEqual(
-            manifest["primary_network"]["host"],
-            {
-                "rpc_url": "http://127.0.0.1:29650",
-                "p_chain_rpc_url": "http://127.0.0.1:29650/ext/bc/P",
-                "x_chain_rpc_url": "http://127.0.0.1:29650/ext/bc/X",
-                "c_chain_rpc_url": "http://127.0.0.1:29650/ext/bc/C/rpc",
-                "c_chain_ws_url": "ws://127.0.0.1:29650/ext/bc/C/ws",
-            },
-        )
-        self.assertEqual(
-            l1["host"],
-            {
-                "rpc_url": "http://127.0.0.1:29651/ext/bc/<blockchain_id>/rpc",
-                "ws_url": "ws://127.0.0.1:29651/ext/bc/<blockchain_id>/ws",
-            },
-        )
+        # Kurtosis publishes every port on a random host port (ADR 0019).
+        for name, service in plan.services().items():
+            self.assertFalse(getattr(service, "public_ports", None), name)
+        self.assertNotIn("host", manifest["primary_network"])
+        self.assertNotIn("host", l1)
 
     def test_pos_defaults(self):
         plan, manifest, commands = self.run_package({})
@@ -349,18 +330,6 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual([command[5] for command in self.by_name(commands, "create")], ["77777", "77778"])
         self.assertEqual([l1["name"] for l1 in manifest["l1s"]], ["l1-0", "l1-1"])
         self.assertIn("l1-1-rpc-0", plan.services())
-        self.assertEqual(plan.services()["l1-1-rpc-0"].public_ports["rpc"].number, 29652)
-        self.assertEqual(manifest["l1s"][1]["host"]["rpc_url"].split("/ext")[0], "http://127.0.0.1:29652")
-
-    def test_rpc_port_zero_leaves_every_port_to_kurtosis(self):
-        args = {"l1": {"validator_management": "poa", "validator_count": 1}, "bridge": False, "rpc_port": 0}
-        plan, manifest, commands = self.run_package(args)
-        # The explorers keep their own fixed ports (`explorer_port`).
-        for name, service in plan.services().items():
-            if name not in EXPLORERS:
-                self.assertFalse(getattr(service, "public_ports", None), name)
-        self.assertNotIn("host", manifest["primary_network"])
-        self.assertNotIn("host", manifest["l1s"][0])
 
 
 class ExplorerTest(unittest.TestCase):
@@ -372,7 +341,6 @@ class ExplorerTest(unittest.TestCase):
         "logs": False,
         "dashboards": False,
         "explorer": True,
-        "explorer_port": 30000,
     }
 
     def run_package(self, args):
@@ -383,19 +351,17 @@ class ExplorerTest(unittest.TestCase):
         plan, manifest = self.run_package(self.ARGS)
         services = plan.services()
         names = list(services)
-        explorers = ["explorer-db", "c-chain-explorer-api", "c-chain-explorer",
-                     "l1-0-explorer-api", "l1-0-explorer", "l1-1-explorer-api", "l1-1-explorer"]
+        explorers = ["explorer-db"] + [
+            "{}-explorer{}".format(chain, part) for chain in ("c-chain", "l1-0", "l1-1") for part in ("-api", "-web", "")
+        ]
         # The explorers start after every L1, in this order.
         self.assertEqual(names[-len(explorers):], explorers)
         self.assertEqual(
             manifest["explorers"],
             [
-                {"chain": "c-chain", "evm_chain_id": 88888,
-                 "url": "http://localhost:30000", "api_url": "http://localhost:30001/api/v2"},
-                {"chain": "l1-0", "evm_chain_id": 77777,
-                 "url": "http://localhost:30002", "api_url": "http://localhost:30003/api/v2"},
-                {"chain": "l1-1", "evm_chain_id": 77778,
-                 "url": "http://localhost:30004", "api_url": "http://localhost:30005/api/v2"},
+                {"chain": "c-chain", "evm_chain_id": 88888, "service": "c-chain-explorer", "port_id": "http"},
+                {"chain": "l1-0", "evm_chain_id": 77777, "service": "l1-0-explorer", "port_id": "http"},
+                {"chain": "l1-1", "evm_chain_id": 77778, "service": "l1-1-explorer", "port_id": "http"},
             ],
         )
         # Each explorer reads its own chain from the first RPC node, and keeps
@@ -408,7 +374,8 @@ class ExplorerTest(unittest.TestCase):
         databases = set()
         for index, (chain, (node, chain_path, chain_id, coin)) in enumerate(expected.items()):
             api = services[chain + "-explorer-api"]
-            web = services[chain + "-explorer"]
+            web = services[chain + "-explorer-web"]
+            proxy = services[chain + "-explorer"]
             env = api.env_vars
             with self.subTest(chain=chain):
                 self.assertEqual(api.image, constants.IMAGES["blockscout"])
@@ -425,12 +392,26 @@ class ExplorerTest(unittest.TestCase):
                 # `finished_indexing` tolerates no untraced block after genesis.
                 self.assertEqual(env["API_INTERNAL_TRANSACTIONS_INDEXING_FINISHED_THRESHOLD"], "1")
                 self.assertEqual(env["TRACE_FIRST_BLOCK"], "1")
-                # The browser reaches the web app and the API on fixed host ports.
-                self.assertEqual(web.public_ports["http"].number, 30000 + 2 * index)
-                self.assertEqual(api.public_ports["http"].number, 30001 + 2 * index)
-                self.assertEqual(web.env_vars["NEXT_PUBLIC_APP_PORT"], str(30000 + 2 * index))
-                self.assertEqual(web.env_vars["NEXT_PUBLIC_API_PORT"], str(30001 + 2 * index))
-                self.assertEqual(web.env_vars["NEXT_PUBLIC_API_HOST"], "localhost")
+                # Kurtosis picks every host port (ADR 0019). The proxy serves
+                # the web app and the API on one address; the browser takes
+                # that address from its location bar.
+                for service in (api, web, proxy):
+                    self.assertFalse(getattr(service, "public_ports", None))
+                self.assertEqual(proxy.image, constants.IMAGES["nginx"])
+                config = self.template(plan, chain + "-explorer-config", "default.conf")
+                self.assertIn("location /api/ {\n        proxy_pass http://" + chain + "-explorer-api:4000;", config)
+                self.assertIn("location /socket/ {\n        proxy_pass http://" + chain + "-explorer-api:4000;", config)
+                self.assertIn("location / {\n        proxy_pass http://" + chain + "-explorer-web:3000;", config)
+                self.assertEqual(proxy.files["/etc/nginx/conf.d"], chain + "-explorer-config")
+                self.assertIn("proxy_set_header Upgrade $http_upgrade;", config)
+                # Contract verification and JSON-RPC batches exceed nginx's 1 MB default.
+                self.assertIn("client_max_body_size 64m;", config)
+                self.assertEqual(web.env_vars["NEXT_PUBLIC_API_HOST"], chain + "-explorer-api")
+                self.assertEqual(web.env_vars["NEXT_PUBLIC_API_PORT"], "4000")
+                self.assertIn("NEXT_PUBLIC_API_HOST = window.location.hostname", web.env_vars["BROWSER_ADDRESS_SCRIPT"])
+                self.assertIn("NEXT_PUBLIC_API_PORT = window.location.port", web.env_vars["BROWSER_ADDRESS_SCRIPT"])
+                self.assertIn("NEXT_PUBLIC_API_PROTOCOL = window.location.protocol", web.env_vars["BROWSER_ADDRESS_SCRIPT"])
+                self.assertIn('"$BROWSER_ADDRESS_SCRIPT" >>public/assets/envs.js && exec node server.js', web.cmd[2])
                 self.assertEqual(web.env_vars["NEXT_PUBLIC_NETWORK_ID"], str(chain_id))
                 self.assertNotIn("NEXT_PUBLIC_USE_NEXT_JS_PROXY", web.env_vars)
                 # Features that show wrong data on Avalanche are off.
@@ -443,8 +424,7 @@ class ExplorerTest(unittest.TestCase):
                 self.assertEqual(web.env_vars["NEXT_PUBLIC_HELIA_VERIFIED_FETCH_ENABLED"], "false")
                 for key in ("NEXT_PUBLIC_FONT_FAMILY_HEADING", "NEXT_PUBLIC_FONT_FAMILY_BODY"):
                     font = json.loads(web.env_vars[key])
-                    self.assertEqual(font["url"], "http://localhost:{}/devnet/fonts.css".format(30000 + 2 * index))
-                self.assertEqual(web.files["/app/public/devnet"], "explorer-fonts")
+                    self.assertEqual(font["url"], "data:text/css,")
                 self.assertEqual(env["MICROSERVICE_SC_VERIFIER_ENABLED"], "false")
                 self.assertEqual(env["DISABLE_MARKET"], "true")
                 # Idle schedulers sleep instead of spinning.
@@ -480,6 +460,18 @@ class ExplorerTest(unittest.TestCase):
         plan, manifest = self.run_package(dict(self.ARGS, explorer=False))
         self.assertFalse([name for name in plan.services() if "explorer" in name])
         self.assertEqual(manifest["explorers"], [])
+
+    def template(self, plan, artifact, path):
+        """Renders one Go template of an artifact; it uses only {{.key}}."""
+        for name, kwargs in plan.calls:
+            if name == "render_templates" and kwargs["name"] == artifact:
+                file = kwargs["config"][path]
+                text = file.template
+                for key, value in file.data.items():
+                    text = text.replace("{{.%s}}" % key, str(value))
+                self.assertNotIn("{{", text)
+                return text
+        raise KeyError(artifact)
 
     def by_name(self, plan, name):
         return [command for command in script_commands(plan) if command[1] == name]

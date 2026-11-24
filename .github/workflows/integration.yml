@@ -60,7 +60,9 @@ jobs:
         env:
           ARGS_FILE: ${{ matrix.args }}
           MAIN_FILE: ${{ matrix.main_file }}
-        run: bash scripts/run.sh "$ARGS_FILE" "$MAIN_FILE" 2>&1 | tee artifacts/integration.log
+        # ENCLAVE is unique to the run: the tools refuse to replay the state
+        # of one deployment onto another.
+        run: kurtosis run --enclave "$ENCLAVE" . --args-file "$ARGS_FILE" --main-file "$MAIN_FILE" 2>&1 | tee artifacts/integration.log
       # Check the network from outside the enclave, with independent tools.
       - run: bash scripts/check-devnet.sh "$ENCLAVE" 2>&1 | tee artifacts/check-devnet.log
       # Check that metrics and logs arrive and that every dashboard has data.

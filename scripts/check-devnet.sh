@@ -10,11 +10,12 @@
 #   3. Each L1's contracts: the ValidatorManager and who owns it.
 #   4. Transactions on the C-Chain and on each L1: a transfer from the funded
 #      account, a contract deployment, contract calls, and new blocks.
-#   5. Every node of an L1 holds the same latest block.
-#      With a fixed `rpc_port`, the chain also answers on its host URL.
+#   5. Every node of an L1 holds the same latest block. Each chain answers
+#      on the address of this machine that scripts/endpoints.sh prints.
 #   6. With `explorer`, each explorer holds the transactions of step 4 and
 #      their token transfer, the internal calls of a contract that makes them,
-#      and reports its indexing finished; its web app answers.
+#      and reports its indexing finished; its web app and its live updates
+#      answer on the address that scripts/endpoints.sh prints.
 #
 # It needs Docker, the Kurtosis CLI, curl, and jq. It signs with the public
 # EWOQ development key and sends a few transactions. Foundry's `cast` runs in a
@@ -37,6 +38,10 @@ trap 'rm -rf "$work"' EXIT
 kurtosis files download "$enclave" deployment-manifest "$work/manifest" >/dev/null 2>&1 ||
     { echo "Cannot read the deployment manifest of enclave $enclave" >&2; exit 1; }
 manifest=$work/manifest/deployment.json
+# The addresses on this machine: Kurtosis publishes every port on a random one.
+bash scripts/endpoints.sh "$enclave" --json >"$work/endpoints.json" ||
+    { echo "Cannot read the published ports of enclave $enclave" >&2; exit 1; }
+endpoints=$work/endpoints.json
 # The contract that the script deploys: the CASH test token.
 bytecode=$(jq -r .bytecode.object static_files/contracts/CashToken.json)
 
@@ -60,10 +65,9 @@ api() {
         jq -c .result 2>/dev/null || true
 }
 
-# check_host_rpc <url-or-null> <chain-id>: with a fixed `rpc_port`, the chain
-# answers on this machine at the URL of the manifest.
+# check_host_rpc <url> <chain-id>: the chain answers on this machine at the
+# URL that scripts/endpoints.sh prints.
 check_host_rpc() {
-    [[ $1 != null ]] || return 0
     check "EVM chain ID at $1" "$(curl -s -m 10 -X POST -H 'content-type: application/json' \
         --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' "$1" |
         jq -r '.result // empty' 2>/dev/null | xargs -r printf '%d' 2>/dev/null || true)" "$2"
@@ -141,14 +145,12 @@ if [[ $balance =~ ^[1-9][0-9]*$ ]]; then pass "X-Chain balance of the EWOQ accou
 
 echo "C-Chain"
 check_evm "$(jq -r .primary_network.c_chain_rpc_url "$manifest")" "$(jq -r .primary_network.c_chain_id "$manifest")"
-check_host_rpc "$(jq -r .primary_network.host.c_chain_rpc_url "$manifest")" "$(jq -r .primary_network.c_chain_id "$manifest")"
-host_p=$(jq -r .primary_network.host.p_chain_rpc_url "$manifest")
-if [[ $host_p != null ]]; then
-    height=$(curl -s -m 10 -X POST -H 'content-type: application/json' \
-        --data '{"jsonrpc":"2.0","id":1,"method":"platform.getHeight","params":{}}' "$host_p" |
-        jq -r '.result.height // empty' 2>/dev/null || true)
-    if [[ $height =~ ^[0-9]+$ ]]; then pass "P-Chain height at $host_p: $height"; else fail "no P-Chain height at $host_p"; fi
-fi
+check_host_rpc "$(jq -r .primary_network.c_chain_rpc_url "$endpoints")" "$(jq -r .primary_network.c_chain_id "$manifest")"
+host_p=$(jq -r .primary_network.p_chain_rpc_url "$endpoints")
+height=$(curl -s -m 10 -X POST -H 'content-type: application/json' \
+    --data '{"jsonrpc":"2.0","id":1,"method":"platform.getHeight","params":{}}' "$host_p" |
+    jq -r '.result.height // empty' 2>/dev/null || true)
+if [[ $height =~ ^[0-9]+$ ]]; then pass "P-Chain height at $host_p: $height"; else fail "no P-Chain height at $host_p"; fi
 
 # ── 2 to 5. Each L1 ──────────────────────────────────────────────────────────
 validator_count=$(jq -r .args.l1.validator_count "$manifest")
@@ -180,7 +182,7 @@ for ((i = 0; i < $(jq '.l1s | length' "$manifest"); i++)); do
 
     # 4. Transactions.
     check_evm "$url" "$(l1 evm_chain_id)"
-    check_host_rpc "$(l1 host.rpc_url)" "$(l1 evm_chain_id)"
+    check_host_rpc "$(jq -r --arg name "$name" '.l1s[] | select(.name == $name) | .rpc_url' "$endpoints")" "$(l1 evm_chain_id)"
 
     # 5. Every validator and RPC node reports the same latest block. A node
     #    can be a moment behind, so the check asks up to 30 times.
@@ -204,14 +206,27 @@ done
 # explorer_api <api-url> <path>: one request to an explorer API on this host.
 # Prints {} when the explorer does not answer; the check that reads it fails.
 explorer_api() { curl -s -m 10 "$1$2" 2>/dev/null | jq -c 'if type == "object" then . else {} end' 2>/dev/null || echo '{}'; }
-for ((e = 0; e < $(jq '.explorers // [] | length' "$manifest"); e++)); do
-    explorer() { jq -r ".explorers[$e].$1" "$manifest"; }
+for ((e = 0; e < $(jq '.explorers | length' "$endpoints"); e++)); do
+    explorer() { jq -r ".explorers[$e].$1" "$endpoints"; }
     api_url=$(explorer api_url)
     chain=$(explorer chain)
     tx=$(cat "$work/last-tx-$(explorer evm_chain_id)" 2>/dev/null || true)
     tx=${tx:-none}
     echo "Explorer of $chain at $(explorer url)"
     check "web app, HTTP status" "$(curl -s -m 10 -o /dev/null -w '%{http_code}' "$(explorer url)" 2>/dev/null || true)" 200
+    # The browser reads the address of the API from its own location bar
+    # (BROWSER_ADDRESS_SCRIPT in src/explorer/launcher.star).
+    if curl -s -m 10 "$(explorer url)/assets/envs.js" 2>/dev/null | grep -q 'NEXT_PUBLIC_API_HOST = window.location.hostname'; then
+        pass "web app reaches the API at the address of the page"
+    else
+        fail "web app does not take the API address from the page"
+    fi
+    # Live updates: the API accepts a WebSocket through the same address.
+    check "WebSocket of the live updates, HTTP status" \
+        "$(curl -s -m 5 -o /dev/null -w '%{http_code}' --http1.1 \
+            -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' \
+            -H 'Sec-WebSocket-Key: ZGV2bmV0LWV4cGxvcmVyLTE=' -H "Origin: $(explorer url)" \
+            "$(explorer url)/socket/v2/websocket?vsn=2.0.0" 2>/dev/null || true)" 101
     # The explorer indexes a new block within seconds, so it may lag a moment.
     # The transaction exists only on this chain, so finding it also shows that
     # the explorer reads the right chain.

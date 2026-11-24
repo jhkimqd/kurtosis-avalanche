@@ -53,6 +53,9 @@ IMAGES = {
     "blockscout_frontend": "ghcr.io/blockscout/frontend@sha256:4b69f44148414b55c6b8550bc3270c63c9f99e923d54ef0b307e762af6bac90a",
     # PostgreSQL 17.12 (Alpine). Stores the index of every explorer.
     "postgres": "postgres@sha256:526f86d93c6ea08fd3f1fe5605650cacc781b2c6013169a0ad8f42c7d3d84f32",
+    # nginx 1.30.6 (Alpine). Serves the web app and the API of one explorer
+    # on one address.
+    "nginx": "nginx@sha256:901e593c95dc85f5a729f5765516321366ef4ac401821431d408897e95287d0a",
     # Tools service: AvalancheGo, platform-cli, cast, curl, and jq. Empty
     # builds the image from ./tools.
     "tools": "",
@@ -81,6 +84,7 @@ PROMETHEUS_PORT_NUMBER = 9090
 EXPLORER_DB_PORT_NUMBER = 5432
 EXPLORER_API_PORT_NUMBER = 4000
 EXPLORER_WEB_PORT_NUMBER = 3000
+EXPLORER_PROXY_PORT_NUMBER = 80
 
 # ── Metrics and logs ─────────────────────────────────────────────────────────
 
@@ -112,12 +116,14 @@ PROMETHEUS_BASE_MEMORY = 384
 PROMETHEUS_NODE_MEMORY = 32
 LOKI_MAX_MEMORY = 512
 GRAFANA_MAX_MEMORY = 768
-# One explorer per EVM chain: an indexer with its API, and a web app. The
-# database holds every explorer, so its limit grows with the number of chains.
+# One explorer per EVM chain: an indexer with its API, a web app, and a proxy
+# in front of both. The database holds every explorer, so its limit grows with
+# the number of chains.
 # Measured after the PoS example with a C-Chain and one L1 explorer: each API
 # used 370 MB, each web app 180 MB, and the database 250 MB.
 EXPLORER_API_MAX_MEMORY = 1024
 EXPLORER_WEB_MAX_MEMORY = 512
+EXPLORER_PROXY_MAX_MEMORY = 64
 EXPLORER_DB_BASE_MEMORY = 384
 EXPLORER_DB_CHAIN_MEMORY = 128
 

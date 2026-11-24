@@ -12,7 +12,7 @@ Three levels of tests:
 
 1. **Unit tests in Python** (`tests/`, seconds). The Starlark modules stay within the syntax that Starlark and Python share. `tests/starlark.py` loads them with `exec`, with a fake `plan` that records each call. The tests cover the defaults, the validation rules, the node config of each role, the bootstrap sizing, and the order of the plan. The loader rejects the common Python constructs that Starlark does not have; the dry run of level 2 is the authority.
 2. **Dry runs** (`scripts/check-package.sh`). The real Kurtosis interpreter lints the package and plans every file in `examples/` and `.github/configs/`.
-3. **Live runs** (`scripts/run.sh`, the integration workflow). Each deployment ends with its own checks: the validator set on the P-Chain, a bridge transfer, test transfers, and agreement of the RPC nodes.
+3. **Live runs** (`kurtosis run` in a new enclave, the integration workflow). Each deployment ends with its own checks: the validator set on the P-Chain, a bridge transfer, test transfers, and agreement of the RPC nodes.
 
 The bash helpers of the setup scripts have unit tests in Python (`tests/test_scripts.py`).
 

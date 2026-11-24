@@ -125,7 +125,6 @@ rpc "$primary/ext/bc/P" platform.getCurrentValidators '{}' >"$dir/validators.jso
 cp "$state/network/genesis.json" "$dir/genesis.json"
 jq --argjson blockchains "$blockchains" --arg empty "$EMPTY_ID" '
     .primary_network as $p
-    | ($p.host // {}) as $h
     | def chain($name): $blockchains.blockchains[] | select(.subnetID == $empty and .name == $name);
     {
         name: "primary-network",
@@ -133,12 +132,11 @@ jq --argjson blockchains "$blockchains" --arg empty "$EMPTY_ID" '
         subnet_id: $empty,
         chains: [
             {name: "P-Chain", blockchain_id: $empty, vm_id: $empty,
-             rpc_url: $p.p_chain_rpc_url, host_rpc_url: $h.p_chain_rpc_url},
+             rpc_url: $p.p_chain_rpc_url},
             (chain("X-Chain") | {name, blockchain_id: .id, vm_id: .vmID,
-             rpc_url: $p.x_chain_rpc_url, host_rpc_url: $h.x_chain_rpc_url}),
+             rpc_url: $p.x_chain_rpc_url}),
             (chain("C-Chain") | {name, blockchain_id: .id, vm_id: .vmID, evm_chain_id: $p.c_chain_id,
-             rpc_url: $p.c_chain_rpc_url, ws_url: $p.c_chain_ws_url,
-             host_rpc_url: $h.c_chain_rpc_url, host_ws_url: $h.c_chain_ws_url})
+             rpc_url: $p.c_chain_rpc_url, ws_url: $p.c_chain_ws_url})
         ]
     }' "$manifest" >"$dir/network.json"
 
@@ -175,7 +173,7 @@ for ((i = 0; i < $(jq '.l1s | length' "$manifest"); i++)); do
     cp "$state/$name/genesis.json" "$dir/genesis.json"
     jq --argjson chain "$chain" '
         {name, chain_name: $chain.name, subnet_id, blockchain_id, vm_id: $chain.vmID, evm_chain_id,
-         rpc_url: .rpc_urls[0], ws_url: .ws_urls[0], host_rpc_url: .host.rpc_url, host_ws_url: .host.ws_url,
+         rpc_url: .rpc_urls[0], ws_url: .ws_urls[0],
          rpc_urls, ws_urls, validator_management, validator_manager_address}
         + (if .staking_manager_address then {staking_manager_address} else {} end)
         + (if .bridge then {bridge} else {} end)' <<<"$l1" >"$dir/network.json"

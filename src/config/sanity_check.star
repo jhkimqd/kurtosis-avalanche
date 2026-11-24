@@ -154,54 +154,13 @@ def check(args):
         fail("l1.subnet_config.validatorOnly is not supported; it must stay false")
 
     _check_genesis(l1["genesis"], args["bridge"])
-    _check_rpc_port(args)
     _check_explorer(args)
-
-
-def _check_rpc_port(args):
-    """Rejects an `rpc_port` whose fixed ports do not fit or collide."""
-    # One port for the Primary Network, then one per L1 (src/node/launcher.star).
-    chain_count = 1 + args["l1"]["count"]
-    port = args["rpc_port"]
-    high = 65536 - chain_count
-    if type(port) != "int" or (port != 0 and (port < 1024 or port > high)):
-        fail(
-            "rpc_port must be 0 or an integer in [1024, {}]: the {} chains take {} host ports from it".format(
-                high, chain_count, chain_count
-            )
-        )
-    if port == 0 or not args["explorer"]:
-        return
-    # The explorers take two ports per chain from `explorer_port`.
-    explorer_port = args["explorer_port"]
-    if type(explorer_port) != "int":
-        return  # _check_explorer names the error.
-    if port < explorer_port + 2 * chain_count and explorer_port < port + chain_count:
-        fail(
-            "rpc_port {}..{} overlaps explorer_port {}..{}; move one of them".format(
-                port,
-                port + chain_count - 1,
-                explorer_port,
-                explorer_port + 2 * chain_count - 1,
-            )
-        )
 
 
 def _check_explorer(args):
     """Rejects explorer arguments that would fail or make it miss data."""
     if not args["explorer"]:
         return
-    # One explorer per chain, two host ports each (src/explorer/launcher.star).
-    explorer_count = 1 + args["l1"]["count"]
-    port = args["explorer_port"]
-    high = 65536 - 2 * explorer_count
-    if type(port) != "int" or port < 1024 or port > high:
-        fail(
-            "explorer_port must be an integer in [1024, {}]: the {} explorers take {} host ports from it".format(
-                high, explorer_count, 2 * explorer_count
-            )
-        )
-
     # The explorer reads old state and replays old transactions.
     for config, label in [
         (args["primary_network"]["c_chain_config"], "primary_network.c_chain_config"),

@@ -237,7 +237,7 @@ class JournalTest(unittest.TestCase):
 
     STUBS = (
         'deployment_identity() { echo test-deployment; }; '
-        'platform() { echo "$*" >>"$DIR/calls"; echo "Increase L1 Validator Balance TX: tx$(wc -l <"$DIR/calls")"; }; '
+        'platform() { echo "$*" >>"$DIR/calls"; echo "Increase L1 Validator Balance TX: tx$(($(wc -l <"$DIR/calls")))"; }; '
         'none() { echo -; }; again() { echo retry; }; '
     )
 

@@ -75,6 +75,7 @@ The first run downloads images and builds the tools image from released tools: A
 | Prometheus | v3.2.1 |
 | Blockscout, with `explorer` | 9.0.2, frontend v2.3.5 |
 | PostgreSQL, with `explorer` | 17.12 |
+| nginx, with `explorer` | 1.30.6 |
 
 ## Quick start
 
@@ -83,7 +84,7 @@ Clone this repository and run these commands from its directory:
 ```sh
 kurtosis engine start
 kurtosis run --enclave avalanche . --args-file examples/poa.yml
-kurtosis enclave inspect avalanche
+bash scripts/endpoints.sh avalanche   # RPC URLs, explorers, and Grafana on this machine
 ```
 
 Choose an example or supply your own arguments file:
@@ -114,9 +115,7 @@ Pass your YAML file with `--args-file`. Without one, the package uses the defaul
 | `metrics` | Collect metrics: Alloy scrapes every node, relayer, and signature aggregator; Prometheus stores the samples. |
 | `logs` | Collect logs: every node writes its log files to a shared volume; Alloy reads them and Loki stores the lines. |
 | `dashboards` | Run Grafana with dashboards for the collected metrics and logs. |
-| `rpc_port` | Fixed host port of the P-, X-, and C-Chain RPC; L1 `n` takes the port `rpc_port + 1 + n`. `0` picks random ports. |
 | `explorer` | Run a Blockscout block explorer for the C-Chain and each L1. On by default; `false` saves about 600 MB of memory per chain. |
-| `explorer_port` | First host port of the explorers; each explorer takes two ports. |
 | `images` | Override service images. |
 
 The remaining arguments configure AvalancheGo and Subnet-EVM. The reference files explain each option and its default:
@@ -144,22 +143,33 @@ Grafana opens on an overview of the devnet. Further dashboards cover one L1, the
 
 ## Explore
 
-By default, the package runs a [Blockscout](https://github.com/blockscout/blockscout) explorer for the C-Chain and for each L1. Open the C-Chain explorer at http://localhost:28000 and the explorer of L1 `n` at port `28000 + 2 × (n + 1)`. The deployment output lists every address under `explorers`. The P-Chain and the X-Chain are not EVM chains and have no explorer. See the [explorer guide](docs/explorer.md) for what the explorer shows, what it changes on the nodes, and its limits.
+By default, the package runs a [Blockscout](https://github.com/blockscout/blockscout) explorer for the C-Chain and for each L1. `bash scripts/endpoints.sh avalanche` prints the address of each one; `kurtosis port print avalanche c-chain-explorer http` prints the C-Chain explorer alone, and `l1-<n>-explorer` the explorer of L1 `n`. The P-Chain and the X-Chain are not EVM chains and have no explorer. See the [explorer guide](docs/explorer.md) for what the explorer shows, what it changes on the nodes, and its limits.
 
 ## Endpoints and accounts
 
-With the default `rpc_port: 29650`, the first node of each chain answers on a fixed port of this machine. The deployment output lists these URLs under `host`, with each L1's blockchain ID.
+Kurtosis publishes every port on a random port of this machine, chosen anew in each deployment, so that several devnets can run side by side (ADR 0019). This script prints the URL of each chain on this machine, with each L1's blockchain ID, the explorers, and Grafana:
 
-| Chain | URL on this machine | EVM chain ID |
-| --- | --- | --- |
-| P-Chain | `http://127.0.0.1:29650/ext/bc/P` | Not applicable |
-| X-Chain | `http://127.0.0.1:29650/ext/bc/X` | Not applicable |
-| C-Chain | `http://127.0.0.1:29650/ext/bc/C/rpc` | `88888` |
-| L1 `n` | `http://127.0.0.1:<29651 + n>/ext/bc/<blockchain-id>/rpc` | `77777 + n` by default |
+```sh
+bash scripts/endpoints.sh avalanche          # a table
+bash scripts/endpoints.sh avalanche --json   # the same as JSON, for scripts
+```
 
-A WebSocket URL replaces `http` with `ws` and `/rpc` with `/ws`. Every other node gets a random port: `kurtosis enclave inspect avalanche` lists them, and `kurtosis port print avalanche <service> rpc` prints one. Add the paths above to it.
+It joins the deployment manifest with `kurtosis port print`. To build a URL by hand, take the address of a node and add the path of a chain:
 
-The tools service describes each network in its own directory under `/opt/networks`: `primary-network/` for the P-, X-, and C-Chain, and `l1-0/`, `l1-1/`, … for the L1s. Each directory holds JSON files: the IDs and RPC URLs (`network.json`), the current validators, the genesis, and the development accounts that the package uses on that network, with their keys and roles (`accounts.json`). `primary-network/blockchains.json` is the answer of `platform.getBlockchains`; each L1 adds `subnet.json` from `platform.getSubnet`.
+| Chain | Node | Path | EVM chain ID |
+| --- | --- | --- | --- |
+| P-Chain | `primary-0` | `/ext/bc/P` | Not applicable |
+| X-Chain | `primary-0` | `/ext/bc/X` | Not applicable |
+| C-Chain | `primary-0` | `/ext/bc/C/rpc` | `88888` |
+| L1 `n` | `l1-<n>-rpc-0` | `/ext/bc/<blockchain-id>/rpc` | `77777 + n` by default |
+
+```sh
+echo "$(kurtosis port print avalanche primary-0 rpc)/ext/bc/C/rpc"
+```
+
+A WebSocket URL replaces `http` with `ws` and `/rpc` with `/ws`. Any node works the same way: `kurtosis enclave inspect avalanche` lists them.
+
+The tools service describes each network in its own directory under `/opt/networks`: `primary-network/` for the P-, X-, and C-Chain, and `l1-0/`, `l1-1/`, … for the L1s. Each directory holds JSON files: the IDs and RPC URLs (`network.json`, with the addresses inside the enclave), the current validators, the genesis, and the development accounts that the package uses on that network, with their keys and roles (`accounts.json`). `primary-network/blockchains.json` is the answer of `platform.getBlockchains`; each L1 adds `subnet.json` from `platform.getSubnet`.
 
 ```sh
 kurtosis service exec avalanche tools 'jq . /opt/networks/l1-0/network.json'

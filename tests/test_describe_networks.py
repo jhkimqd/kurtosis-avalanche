@@ -46,20 +46,11 @@ MANIFEST = {
         "x_chain_rpc_url": "http://primary-0:9650/ext/bc/X",
         "c_chain_rpc_url": "http://primary-0:9650/ext/bc/C/rpc",
         "c_chain_ws_url": "ws://primary-0:9650/ext/bc/C/ws", "c_chain_id": 88888,
-        "host": {
-            "rpc_url": "http://127.0.0.1:29650",
-            "p_chain_rpc_url": "http://127.0.0.1:29650/ext/bc/P",
-            "x_chain_rpc_url": "http://127.0.0.1:29650/ext/bc/X",
-            "c_chain_rpc_url": "http://127.0.0.1:29650/ext/bc/C/rpc",
-            "c_chain_ws_url": "ws://127.0.0.1:29650/ext/bc/C/ws",
-        },
     },
     "l1s": [{
         "name": "l1-0", "subnet_id": "L1Subnet", "blockchain_id": "L1Chain", "evm_chain_id": 77777,
         "rpc_urls": ["http://l1-0-rpc-0:9650/ext/bc/L1Chain/rpc", "http://l1-0-rpc-1:9650/ext/bc/L1Chain/rpc"],
         "ws_urls": ["ws://l1-0-rpc-0:9650/ext/bc/L1Chain/ws", "ws://l1-0-rpc-1:9650/ext/bc/L1Chain/ws"],
-        "host": {"rpc_url": "http://127.0.0.1:29651/ext/bc/L1Chain/rpc",
-                 "ws_url": "ws://127.0.0.1:29651/ext/bc/L1Chain/ws"},
         "validator_management": "native-pos",
         "validator_manager_address": "0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25",
         "staking_manager_address": "0xStaking",
@@ -125,7 +116,10 @@ class DescribeNetworksTest(unittest.TestCase):
         self.assertEqual(primary["chains"][0]["blockchain_id"], EMPTY)
         self.assertEqual(primary["chains"][2]["blockchain_id"], "CChain")
         self.assertEqual(primary["chains"][2]["evm_chain_id"], 88888)
-        self.assertEqual(primary["chains"][2]["host_rpc_url"], "http://127.0.0.1:29650/ext/bc/C/rpc")
+        self.assertEqual(primary["chains"][2]["rpc_url"], "http://primary-0:9650/ext/bc/C/rpc")
+        # Host ports are random and known only outside the enclave
+        # (scripts/endpoints.sh); the description holds no host address.
+        self.assertNotIn("127.0.0.1", json.dumps(primary))
         self.assertEqual(len(self.read("primary-network/blockchains.json")["blockchains"]), 3)
         self.assertEqual(self.read("primary-network/validators.json")["validators"][0]["nodeID"], "NodeID-primary")
         self.assertEqual(self.read("primary-network/genesis.json"), {"networkID": 88888})
@@ -133,11 +127,11 @@ class DescribeNetworksTest(unittest.TestCase):
         l1 = self.read("l1-0/network.json")
         self.assertEqual(
             {k: l1[k] for k in ("blockchain_id", "subnet_id", "vm_id", "chain_name", "evm_chain_id", "rpc_url",
-                                "host_rpc_url", "staking_manager_address")},
+                                "staking_manager_address")},
             {"blockchain_id": "L1Chain", "subnet_id": "L1Subnet", "vm_id": "SubnetEVM",
              "chain_name": "Avalanche Devnet", "evm_chain_id": 77777,
              "rpc_url": "http://l1-0-rpc-0:9650/ext/bc/L1Chain/rpc",
-             "host_rpc_url": "http://127.0.0.1:29651/ext/bc/L1Chain/rpc", "staking_manager_address": "0xStaking"})
+             "staking_manager_address": "0xStaking"})
         self.assertEqual(len(l1["rpc_urls"]), 2)
         self.assertEqual(l1["bridge"], {"home": "0xHome"})
         self.assertEqual(self.read("l1-0/subnet.json")["managerChainID"], "L1Chain")
@@ -162,11 +156,10 @@ class DescribeNetworksTest(unittest.TestCase):
         self.assertIn("receives its rewards", l1[0]["role"])
         self.assertNotIn("Proof of Authority", l1[0]["role"])
 
-    def test_poa_without_bridge_or_host_ports(self):
+    def test_poa_without_bridge(self):
         manifest = json.loads(json.dumps(MANIFEST))
-        del manifest["primary_network"]["host"]
         l1 = manifest["l1s"][0]
-        for key in ("host", "bridge", "staking_manager_address"):
+        for key in ("bridge", "staking_manager_address"):
             del l1[key]
         l1["validator_management"] = "poa"
         result = self.run_script(json.dumps(manifest))
@@ -175,7 +168,6 @@ class DescribeNetworksTest(unittest.TestCase):
         accounts = self.read("l1-0/accounts.json")
         self.assertEqual([a["name"] for a in accounts], ["ewoq"])
         self.assertIn("Proof of Authority", accounts[0]["role"])
-        self.assertIsNone(self.read("l1-0/network.json")["host_rpc_url"])
         self.assertNotIn("staking_manager_address", self.read("l1-0/network.json"))
 
     def test_a_rerun_without_the_manifest_refreshes_the_files(self):

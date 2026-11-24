@@ -30,8 +30,7 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
         first_node_index: first generated node identity reserved for this L1.
     Returns:
         struct(manifest): a dict of the L1's IDs, contract addresses, and the
-        RPC and WebSocket URLs of its RPC nodes. With a fixed `rpc_port`,
-        `host` holds the URLs of the first RPC node on this machine.
+        RPC and WebSocket URLs of its RPC nodes inside the enclave.
     """
     l1_args = args["l1"]
     name = generate_name(l1_index)
@@ -91,8 +90,6 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
     #    permanent validators. A PoS L1 starts with temporary bootstrap
     #    validators, because a validator named at conversion holds no stake.
     def launch_node(role, number, index):
-        # The first RPC node serves the L1 on a fixed port of this machine.
-        is_first_rpc = role == constants.NODE_ROLE.rpc and number == 0
         return node_launcher.launch(
             plan,
             args,
@@ -102,11 +99,6 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
             index=index,
             bootstrap_peer=primary.bootstrap_peer,
             l1=l1,
-            host_port=(
-                node_launcher.host_rpc_port(args, l1_index + 1)
-                if is_first_rpc
-                else None
-            ),
         )
 
     if is_pos:
@@ -173,15 +165,6 @@ def launch(plan, args, network, primary, l1_index, first_node_index):
         "validator_management": mode,
         "validator_manager_address": constants.VALIDATOR_MANAGER_ADDRESS,
     }
-    if rpc_nodes[0].host_rpc_url:
-        manifest["host"] = {
-            "rpc_url": "{}/ext/bc/{}/rpc".format(
-                rpc_nodes[0].host_rpc_url, l1.blockchain_id
-            ),
-            "ws_url": "{}/ext/bc/{}/ws".format(
-                rpc_nodes[0].host_ws_url, l1.blockchain_id
-            ),
-        }
 
     # 5. Deploy the token bridge between the C-Chain and the L1.
     if args["bridge"]:

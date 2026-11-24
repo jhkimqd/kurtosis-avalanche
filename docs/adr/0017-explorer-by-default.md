@@ -1,6 +1,6 @@
 # 0017. Run the block explorers by default
 
-Status: Accepted
+Status: Accepted. Its host ports (`explorer_port`) are superseded by [0019](0019-random-host-ports.md).
 
 ## Context
 
