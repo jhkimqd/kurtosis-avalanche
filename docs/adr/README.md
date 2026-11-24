@@ -23,6 +23,7 @@ An ADR records one decision that shapes this package: the situation, the choice,
 | [0017](0017-explorer-by-default.md) | Run the block explorers by default |
 | [0018](0018-existing-tools-and-shell-scripts.md) | Sign with platform-cli and cast from shell scripts, not a Go tool of the package |
 | [0019](0019-random-host-ports.md) | Publish every port on a random host port, and print the addresses with a script |
+| [0020](0020-mainnet-network-parameters.md) | Copy the Mainnet network parameters, and start each L1 from the upstream fee config |
 
 ## Add an ADR
 

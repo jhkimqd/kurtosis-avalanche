@@ -77,6 +77,7 @@ Run a live deployment before you report a change to `src/`, `tools/`, or `static
 | --- | --- |
 | Add or change an argument | `input_parser.star` (default and comment) → `sanity_check.star` → `examples/pos.yml` → `README.md` table → `tests/test_config.py` |
 | Change a default AvalancheGo flag | `DEFAULT_NODE_CONFIG` in `input_parser.star` → regenerate `docs/config/` |
+| Follow a new Mainnet value (fee, C-Chain vote, L1 fee config) | `DEFAULT_NODE_CONFIG` or `DEFAULT_C_CHAIN_CONFIG` in `input_parser.star`, or `static_files/l1-genesis.json` → the table in `docs/network-parameters.md` → regenerate `docs/config/` → `tests/test_config.py` |
 | Take control of an AvalancheGo flag | `src/node/launcher.star` → `MANAGED_NODE_FLAGS` in `sanity_check.star` → regenerate `docs/config/` |
 | Bump a node image | `IMAGES` in `constants.star` → the `COPY --from` digest in `tools/Dockerfile` (a test compares them) → `static_files/upgrade.json` if the release adds an upgrade → regenerate `docs/config/` and review its hand-written files → the version and the commit in `README.md`, `AGENTS.md`, and `examples/pos.yml` (a test compares them) → live run of both examples |
 | Add a setup step | a function and a subcommand in `static_files/scripts/<concern>.sh` → its caller in `src/` (`tools.run_script`) → `tests/test_scripts.py` for new encoding helpers or contract methods |
