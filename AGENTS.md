@@ -28,7 +28,7 @@ shellcheck -x -P static_files/scripts static_files/scripts/*.sh   # lint the set
 bash scripts/build.sh                         # build the tools image (released tools only)
 python3 scripts/gen-config-reference.py       # regenerate node.yml, l1-chain.yml, c-chain.yml
 python3 scripts/gen-dashboards.py             # regenerate the Grafana dashboards
-bash scripts/run.sh examples/poa.yml          # live run in a new enclave
+kurtosis run --enclave <new-enclave> . --args-file examples/poa.yml   # live run
 bash scripts/endpoints.sh <enclave>           # its addresses on this machine
 bash scripts/check-devnet.sh <enclave>        # check a running devnet from the outside
 bash scripts/check-observability.sh <enclave> # check its metrics, logs, and dashboards
@@ -67,7 +67,7 @@ Run a live deployment before you report a change to `src/`, `tools/`, or `static
 | `docs/observability.md` | The observability stack: dashboards, labels, and limits. |
 | `docs/explorer.md` | The block explorers: addresses, node changes, the P-Chain and X-Chain APIs, and limits. |
 | `docs/adr/` | Architecture decision records. |
-| `scripts/` | `run.sh` (deploy), `endpoints.sh` (print the addresses of a running devnet), `check-devnet.sh` (check a running devnet), `check-observability.sh` (check its observability stack), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`, `gen-dashboards.py`. |
+| `scripts/` | `endpoints.sh` (print the addresses of a running devnet), `check-devnet.sh` (check a running devnet), `check-observability.sh` (check its observability stack), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`, `gen-dashboards.py`. |
 | `tests/` | Python unit tests. `tests/starlark.py` loads the Starlark modules in Python. |
 
 ## Where to make a change
@@ -155,7 +155,7 @@ These follow kurtosis-pos (`src/config/`, launcher contract) and kurtosis-cdk (`
 2. `python3 -m unittest discover -s tests` passes with PyYAML installed.
 3. `bash scripts/check-package.sh` plans every arguments file.
 4. `bash scripts/build.sh` passes if `tools/` changed. shellcheck passes if `static_files/scripts/` changed. `bash scripts/check-alloy.sh` passes if `static_files/observability/alloy/` changed.
-5. `bash scripts/run.sh examples/poa.yml` passes if `src/`, `tools/`, or `static_files/scripts/` changed. Also run `examples/pos.yml` if the change touches staking, the bridge, node config, or the observability stack; then `bash scripts/check-observability.sh <enclave>` passes. Both examples run the explorers; then `bash scripts/check-devnet.sh <enclave>` passes.
+5. `kurtosis run --enclave <new-enclave> . --args-file examples/poa.yml` passes if `src/`, `tools/`, or `static_files/scripts/` changed. Also run `examples/pos.yml` if the change touches staking, the bridge, node config, or the observability stack; then `bash scripts/check-observability.sh <enclave>` passes. Both examples run the explorers; then `bash scripts/check-devnet.sh <enclave>` passes.
 6. Remove the enclaves that you started.
 
 ## Decisions and commits

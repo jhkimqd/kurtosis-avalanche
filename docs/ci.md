@@ -29,7 +29,7 @@ Run the same scenario locally with a fresh enclave:
 
 ```sh
 enclave="avalanche-nightly-$(date +%s)-$$"
-ENCLAVE="$enclave" bash scripts/run.sh .github/configs/two-l1s.yml nightly.star
+kurtosis run --enclave "$enclave" . --args-file .github/configs/two-l1s.yml --main-file nightly.star
 bash scripts/check-devnet.sh "$enclave"
 kurtosis enclave rm -f "$enclave"
 ```
