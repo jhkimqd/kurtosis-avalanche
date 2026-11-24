@@ -50,7 +50,9 @@ class NodeTest(unittest.TestCase):
         )
         self.assertEqual(files["chains/P/config.json"], {"checksums-enabled": True})
         self.assertEqual(files["chains/X/config.json"], {})
-        self.assertEqual(files["chains/C/config.json"], {"apis": ["chain"]})
+        self.assertEqual(
+            files["chains/C/config.json"], input_parser.DEFAULT_C_CHAIN_CONFIG | {"apis": ["chain"]}
+        )
         self.assertEqual(flags["log-level"], "debug")
         self.assertEqual(flags["network-id"], str(constants.NETWORK_ID))
         self.assertEqual(flags["staking-tls-key-file"], "/network/nodes/0/staker.key")

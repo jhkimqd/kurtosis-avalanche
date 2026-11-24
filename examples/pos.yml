@@ -43,7 +43,11 @@ primary_network:
   # P-Chain and X-Chain configs: docs/config/p-x-chain.yml.
   p_chain_config: {}
   x_chain_config: {}
-  # C-Chain config: docs/config/c-chain.yml.
+  # C-Chain config: docs/config/c-chain.yml. The validators also vote for the
+  # gas target, minimum block delay, and minimum gas price of Avalanche
+  # Mainnet (`gas-target`, `min-delay-target`, `min-price-target`); a key here
+  # replaces that vote. The chain moves toward the votes block by block:
+  # docs/network-parameters.md.
   c_chain_config: {}
 
 # ── Avalanche L1 ─────────────────────────────────────────────────────────────

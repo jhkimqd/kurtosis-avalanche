@@ -47,6 +47,17 @@ class NodeReferenceTest(unittest.TestCase):
         self.assertIn("all {} of them".format(len(flags)), self.text)
 
 
+class ChainReferenceTest(unittest.TestCase):
+    def test_c_chain_reference_shows_every_package_default(self):
+        text = (CONFIG / "c-chain.yml").read_text()
+        for option, value in input_parser.DEFAULT_C_CHAIN_CONFIG.items():
+            # A space of the note can wrap into a new comment line.
+            note = r"(?: |\n    # )".join(["Package", "default:", str(value), r"\(Avalanche", r"Mainnet\)\."])
+            pattern = r"{}\n    #{}: {}\n".format(note, re.escape(option), value)
+            with self.subTest(option=option):
+                self.assertRegex(text, pattern)
+
+
 @unittest.skipUnless(yaml, "PyYAML is not installed")
 class ReferenceFilesTest(unittest.TestCase):
     files = sorted(CONFIG.glob("*.yml"))
@@ -116,6 +127,15 @@ class NetworkParametersDocTest(unittest.TestCase):
         self.assertEqual(
             self.cell("X-Chain CreateAssetTx fee"),
             "{:g} AVAX".format(flags["create-asset-tx-fee"] / 1e9),
+        )
+
+    def test_c_chain_table(self):
+        votes = input_parser.DEFAULT_C_CHAIN_CONFIG
+        self.assertEqual(self.cell("Gas target"), "{:,} gas/s".format(votes["gas-target"]))
+        self.assertEqual(self.cell("Block gas limit"), "{:,}".format(20 * votes["gas-target"]))
+        self.assertEqual(self.cell("Minimum block delay"), "{} ms".format(votes["min-delay-target"]))
+        self.assertEqual(
+            self.cell("Minimum gas price"), "{:g} gwei".format(votes["min-price-target"] / 1e9)
         )
 
 

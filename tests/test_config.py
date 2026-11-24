@@ -276,22 +276,37 @@ class NodeConfigTest(unittest.TestCase):
         # `eth-apis` replaces the upstream list, so it repeats every default.
         self.assertEqual(l1["eth-apis"][:7], ["eth", "eth-filter", "net", "web3", "internal-eth", "internal-blockchain", "internal-transaction"])
         # The C-Chain traces by default; it only keeps every state.
-        self.assertEqual(args["primary_network"]["c_chain_config"], {"pruning-enabled": False})
+        c_chain = input_parser.DEFAULT_C_CHAIN_CONFIG
+        self.assertEqual(args["primary_network"]["c_chain_config"], c_chain | {"pruning-enabled": False})
         # The user's values win.
         apis = list(input_parser.EXPLORER_L1_ETH_APIS) + ["internal-tx-pool"]
         args = parse({"explorer": True, "l1": {"chain_config": {"eth-apis": apis}},
                       "primary_network": {"c_chain_config": {"log-level": "debug"}}})
         self.assertEqual(args["l1"]["chain_config"]["eth-apis"], apis)
-        self.assertEqual(args["primary_network"]["c_chain_config"], {"pruning-enabled": False, "log-level": "debug"})
+        self.assertEqual(
+            args["primary_network"]["c_chain_config"],
+            c_chain | {"pruning-enabled": False, "log-level": "debug"},
+        )
         # The explorer runs by default.
         self.assertEqual(parse({})["l1"]["chain_config"], parse({"explorer": True})["l1"]["chain_config"])
         # Without the explorer, nothing changes.
         args = parse({"explorer": False})
         self.assertEqual(args["l1"]["chain_config"], {"warp-api-enabled": True})
-        self.assertEqual(args["primary_network"]["c_chain_config"], {})
+        self.assertEqual(args["primary_network"]["c_chain_config"], c_chain)
         # The parsed list is a copy: changing it leaves the constant alone.
         parse({"explorer": True})["l1"]["chain_config"]["eth-apis"].append("x")
         self.assertNotIn("x", input_parser.EXPLORER_L1_ETH_APIS)
+
+    def test_c_chain_validators_vote_the_mainnet_values(self):
+        # Decoded from the Mainnet C-Chain headers (docs/network-parameters.md).
+        mainnet = {"gas-target": 4000000, "min-delay-target": 700, "min-price-target": 7500000000}
+        for explorer in (True, False):
+            c_chain = parse({"explorer": explorer})["primary_network"]["c_chain_config"]
+            self.assertEqual({key: c_chain[key] for key in mainnet}, mainnet)
+        # A user value replaces the vote.
+        args = parse({"primary_network": {"c_chain_config": {"gas-target": 1600000}}})
+        self.assertEqual(args["primary_network"]["c_chain_config"]["gas-target"], 1600000)
+        self.assertEqual(args["primary_network"]["c_chain_config"]["min-delay-target"], 700)
 
     def test_chain_configs_stay_separate(self):
         args = parse(
@@ -301,7 +316,10 @@ class NodeConfigTest(unittest.TestCase):
                 "explorer": False,
             }
         )
-        self.assertEqual(args["primary_network"]["c_chain_config"], {"apis": ["chain"]})
+        self.assertEqual(
+            args["primary_network"]["c_chain_config"],
+            input_parser.DEFAULT_C_CHAIN_CONFIG | {"apis": ["chain"]},
+        )
         self.assertEqual(
             args["l1"]["chain_config"], {"warp-api-enabled": True, "log-level": "debug"}
         )
