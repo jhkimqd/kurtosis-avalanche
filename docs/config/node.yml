@@ -808,7 +808,7 @@ node_config:
   # continuous fee that every L1 validator pays to the P-Chain in AVAX.
 
   # Transaction fee, in nAVAX, for transactions that create new assets.
-  # Type: uint.
+  # Type: uint. Package default: 10000000.
   #create-asset-tx-fee: 1000000
 
   # Complexity multiplier used to convert Bandwidth into Gas.
@@ -856,11 +856,11 @@ node_config:
   #validator-fees-capacity: 20000
 
   # Constant to convert validator excess price.
-  # Type: uint.
+  # Type: uint. Package default: 1246488515.
   #validator-fees-excess-conversion-constant: 865617
 
   # Minimum validator price in nAVAX per second.
-  # Type: uint.
+  # Type: uint. Package default: 512.
   #validator-fees-min-price: 1
 
   # Target number of validators.

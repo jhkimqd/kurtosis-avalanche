@@ -43,7 +43,11 @@ primary_network:
   # P-Chain and X-Chain configs: docs/config/p-x-chain.yml.
   p_chain_config: {}
   x_chain_config: {}
-  # C-Chain config: docs/config/c-chain.yml.
+  # C-Chain config: docs/config/c-chain.yml. The validators also vote for the
+  # gas target, minimum block delay, and minimum gas price of Avalanche
+  # Mainnet (`gas-target`, `min-delay-target`, `min-price-target`); a key here
+  # replaces that vote. The chain moves toward the votes block by block:
+  # docs/network-parameters.md.
   c_chain_config: {}
 
 # ── Avalanche L1 ─────────────────────────────────────────────────────────────
@@ -95,12 +99,14 @@ l1:
   # genesis in static_files/l1-genesis.json. Reference: docs/config/l1-genesis.yml.
   genesis:
     config:
-      # Every transaction pays gas in the L1's native token.
+      # Every transaction pays gas in the L1's native token. The values are the
+      # Subnet-EVM default fee config, which Avalanche CLI also starts from:
+      # docs/network-parameters.md.
       feeConfig:
-        gasLimit: 20000000        # Maximum gas of one block.
-        minBaseFee: 1000000000    # Lowest gas price, in wei: 1 gwei.
-        targetGas: 100000000      # Gas use per 10 seconds above which the price rises.
-        baseFeeChangeDenominator: 48  # A larger value makes the price change slower.
+        gasLimit: 8000000         # Maximum gas of one block.
+        minBaseFee: 25000000000   # Lowest gas price, in wei: 25 gwei.
+        targetGas: 15000000       # Gas use per 10 seconds above which the price rises.
+        baseFeeChangeDenominator: 36  # A larger value makes the price change slower.
         # The last four fields had a function before the Granite upgrade, which
         # is active on this devnet. They have no effect now, but Subnet-EVM
         # still requires them. A block follows its parent after about 2 seconds
@@ -108,8 +114,8 @@ l1:
         # sets this delay.
         targetBlockRate: 2
         minBlockGasCost: 0
-        maxBlockGasCost: 10000000
-        blockGasCostStep: 500000
+        maxBlockGasCost: 1000000
+        blockGasCostStep: 200000
     # Accounts that hold the native token at genesis, in wei (1 token = 10^18
     # wei). The EWOQ account holds 1,000,000 tokens. With `bridge: true`, the
     # bridge backs this total supply with collateral on the C-Chain.

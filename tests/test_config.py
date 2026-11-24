@@ -234,6 +234,34 @@ class NodeConfigTest(unittest.TestCase):
         # Untouched package defaults remain.
         self.assertEqual(l1["snow-preference-quorum-size"], 2)
 
+    def test_mainnet_fees_apply_to_every_node(self):
+        # MainnetParams.TxFeeConfig in genesis/genesis_mainnet.go of the pinned AvalancheGo.
+        mainnet = {
+            "validator-fees-min-price": 512,
+            "validator-fees-excess-conversion-constant": 1246488515,
+            "create-asset-tx-fee": 10000000,
+        }
+        args = parse({})
+        for section in ("primary_network", "l1"):
+            for flag, value in mainnet.items():
+                self.assertEqual(args[section]["node_config"][flag], value)
+
+    def test_every_package_value_can_be_overridden(self):
+        # The Mainnet values are defaults, not rules: any value is accepted,
+        # also one that differs between the two sections of nodes.
+        args = parse(
+            {
+                "node_config": {"validator-fees-min-price": 1},
+                "l1": {"node_config": {"validator-fees-min-price": 7, "create-asset-tx-fee": 0}},
+                "primary_network": {"c_chain_config": {"gas-target": 15000000, "min-delay-target": 0}},
+            }
+        )
+        self.assertEqual(args["primary_network"]["node_config"]["validator-fees-min-price"], 1)
+        self.assertEqual(args["l1"]["node_config"]["validator-fees-min-price"], 7)
+        self.assertEqual(args["l1"]["node_config"]["create-asset-tx-fee"], 0)
+        c_chain = args["primary_network"]["c_chain_config"]
+        self.assertEqual((c_chain["gas-target"], c_chain["min-delay-target"]), (15000000, 0))
+
     def test_package_defaults_do_not_include_managed_flags(self):
         self.assertFalse(
             set(input_parser.DEFAULT_NODE_CONFIG) & set(sanity_check.MANAGED_NODE_FLAGS)
@@ -248,22 +276,37 @@ class NodeConfigTest(unittest.TestCase):
         # `eth-apis` replaces the upstream list, so it repeats every default.
         self.assertEqual(l1["eth-apis"][:7], ["eth", "eth-filter", "net", "web3", "internal-eth", "internal-blockchain", "internal-transaction"])
         # The C-Chain traces by default; it only keeps every state.
-        self.assertEqual(args["primary_network"]["c_chain_config"], {"pruning-enabled": False})
+        c_chain = input_parser.DEFAULT_C_CHAIN_CONFIG
+        self.assertEqual(args["primary_network"]["c_chain_config"], c_chain | {"pruning-enabled": False})
         # The user's values win.
         apis = list(input_parser.EXPLORER_L1_ETH_APIS) + ["internal-tx-pool"]
         args = parse({"explorer": True, "l1": {"chain_config": {"eth-apis": apis}},
                       "primary_network": {"c_chain_config": {"log-level": "debug"}}})
         self.assertEqual(args["l1"]["chain_config"]["eth-apis"], apis)
-        self.assertEqual(args["primary_network"]["c_chain_config"], {"pruning-enabled": False, "log-level": "debug"})
+        self.assertEqual(
+            args["primary_network"]["c_chain_config"],
+            c_chain | {"pruning-enabled": False, "log-level": "debug"},
+        )
         # The explorer runs by default.
         self.assertEqual(parse({})["l1"]["chain_config"], parse({"explorer": True})["l1"]["chain_config"])
         # Without the explorer, nothing changes.
         args = parse({"explorer": False})
         self.assertEqual(args["l1"]["chain_config"], {"warp-api-enabled": True})
-        self.assertEqual(args["primary_network"]["c_chain_config"], {})
+        self.assertEqual(args["primary_network"]["c_chain_config"], c_chain)
         # The parsed list is a copy: changing it leaves the constant alone.
         parse({"explorer": True})["l1"]["chain_config"]["eth-apis"].append("x")
         self.assertNotIn("x", input_parser.EXPLORER_L1_ETH_APIS)
+
+    def test_c_chain_validators_vote_the_mainnet_values(self):
+        # Decoded from the Mainnet C-Chain headers (docs/network-parameters.md).
+        mainnet = {"gas-target": 4000000, "min-delay-target": 700, "min-price-target": 7500000000}
+        for explorer in (True, False):
+            c_chain = parse({"explorer": explorer})["primary_network"]["c_chain_config"]
+            self.assertEqual({key: c_chain[key] for key in mainnet}, mainnet)
+        # A user value replaces the vote.
+        args = parse({"primary_network": {"c_chain_config": {"gas-target": 1600000}}})
+        self.assertEqual(args["primary_network"]["c_chain_config"]["gas-target"], 1600000)
+        self.assertEqual(args["primary_network"]["c_chain_config"]["min-delay-target"], 700)
 
     def test_chain_configs_stay_separate(self):
         args = parse(
@@ -273,7 +316,10 @@ class NodeConfigTest(unittest.TestCase):
                 "explorer": False,
             }
         )
-        self.assertEqual(args["primary_network"]["c_chain_config"], {"apis": ["chain"]})
+        self.assertEqual(
+            args["primary_network"]["c_chain_config"],
+            input_parser.DEFAULT_C_CHAIN_CONFIG | {"apis": ["chain"]},
+        )
         self.assertEqual(
             args["l1"]["chain_config"], {"warp-api-enabled": True, "log-level": "debug"}
         )
@@ -336,6 +382,27 @@ class ArgumentsFilesTest(unittest.TestCase):
             example["l1"]["genesis"]["config"]["feeConfig"], base["config"]["feeConfig"]
         )
         self.assertEqual(example["l1"]["validator_management"], "poa")
+
+    def test_base_genesis_uses_the_subnet_evm_default_fees(self):
+        # DefaultFeeConfig in graft/subnet-evm/params/extras/config.go of the
+        # pinned AvalancheGo.
+        base = json.loads((ROOT / "static_files/l1-genesis.json").read_text())
+        self.assertEqual(
+            base["config"]["feeConfig"],
+            {
+                "gasLimit": 8000000,
+                "minBaseFee": 25000000000,
+                "targetGas": 15000000,
+                "baseFeeChangeDenominator": 36,
+                "minBlockGasCost": 0,
+                "maxBlockGasCost": 1000000,
+                "targetBlockRate": 2,
+                "blockGasCostStep": 200000,
+            },
+        )
+        # ACP-226: without initialMinDelayMS, a block follows its parent after
+        # 2000 ms at the earliest, the upstream and Builder Console default.
+        self.assertNotIn("initialMinDelayMS", base["config"])
 
 
 class ContractArtifactTest(unittest.TestCase):

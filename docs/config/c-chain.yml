@@ -23,18 +23,21 @@ primary_network:
 
     # The target minimum gas price, in wei (aAVAX), that this node will
     # attempt to use when creating blocks.
-    # Type: uint64. Default: parent block's target.
-    #min-price-target:
+    # Type: uint64. Default: parent block's target. Package default:
+    # 7500000000 (Avalanche Mainnet).
+    #min-price-target: 7500000000
 
     # The target gas per second that this node will attempt to use when
     # creating blocks.
-    # Type: uint64. Default: parent block's target.
-    #gas-target:
+    # Type: uint64. Default: parent block's target. Package default: 4000000
+    # (Avalanche Mainnet).
+    #gas-target: 4000000
 
     # The minimum delay between blocks (in milliseconds) that this node will
     # attempt to use when creating blocks.
-    # Type: uint64. Default: parent block's target.
-    #min-delay-target:
+    # Type: uint64. Default: parent block's target. Package default: 700
+    # (Avalanche Mainnet).
+    #min-delay-target: 700
 
     # ── State and Trie ──────────────────────────────────────────────────────
 

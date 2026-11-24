@@ -524,7 +524,14 @@ def main():
                 "# On the first start, Coreth also reads this file once, before the SAE VM",
                 "# takes over. Coreth ignores the options that it does not know.",
             ],
-            ["primary_network", "c_chain_config"], {}, defaults_in_go=False,
+            ["primary_network", "c_chain_config"],
+            {
+                name: (str(value), "Package default: {} (Avalanche Mainnet).".format(value))
+                for name, value in starlark_constant(
+                    "src/config/input_parser.star", "DEFAULT_C_CHAIN_CONFIG"
+                ).items()
+            },
+            defaults_in_go=False,
         )
     )
     print("Wrote node.yml, l1-chain.yml, and c-chain.yml for AvalancheGo {} ({})".format(version, commit[:10]))

@@ -47,6 +47,17 @@ class NodeReferenceTest(unittest.TestCase):
         self.assertIn("all {} of them".format(len(flags)), self.text)
 
 
+class ChainReferenceTest(unittest.TestCase):
+    def test_c_chain_reference_shows_every_package_default(self):
+        text = (CONFIG / "c-chain.yml").read_text()
+        for option, value in input_parser.DEFAULT_C_CHAIN_CONFIG.items():
+            # A space of the note can wrap into a new comment line.
+            note = r"(?: |\n    # )".join(["Package", "default:", str(value), r"\(Avalanche", r"Mainnet\)\."])
+            pattern = r"{}\n    #{}: {}\n".format(note, re.escape(option), value)
+            with self.subTest(option=option):
+                self.assertRegex(text, pattern)
+
+
 @unittest.skipUnless(yaml, "PyYAML is not installed")
 class ReferenceFilesTest(unittest.TestCase):
     files = sorted(CONFIG.glob("*.yml"))
@@ -95,6 +106,50 @@ class ReferenceFilesTest(unittest.TestCase):
         (balance,) = [account["balance"] for account in reference["alloc"].values()]
         self.assertEqual([balance], [a["balance"] for a in base["alloc"].values()])
 
+
+class NetworkParametersDocTest(unittest.TestCase):
+    """The tables of docs/network-parameters.md show the package values."""
+
+    text = (ROOT / "docs/network-parameters.md").read_text()
+
+    def cell(self, row):
+        """Returns the first value cell of the table row that starts with `row`."""
+        match = re.search(r"^\| {} \| ([^|]+) \|".format(re.escape(row)), self.text, re.M)
+        self.assertIsNotNone(match, row)
+        return match[1].strip()
+
+    def test_p_chain_table(self):
+        flags = input_parser.DEFAULT_NODE_CONFIG
+        self.assertEqual(
+            self.cell("L1 validator fee, minimum price"),
+            "{} nAVAX/s".format(flags["validator-fees-min-price"]),
+        )
+        self.assertEqual(
+            self.cell("X-Chain CreateAssetTx fee"),
+            "{:g} AVAX".format(flags["create-asset-tx-fee"] / 1e9),
+        )
+
+    def test_c_chain_table(self):
+        votes = input_parser.DEFAULT_C_CHAIN_CONFIG
+        self.assertEqual(self.cell("Gas target"), "{:,} gas/s".format(votes["gas-target"]))
+        self.assertEqual(self.cell("Block gas limit"), "{:,}".format(20 * votes["gas-target"]))
+        self.assertEqual(self.cell("Minimum block delay"), "{} ms".format(votes["min-delay-target"]))
+        self.assertEqual(
+            self.cell("Minimum gas price"), "{:g} gwei".format(votes["min-price-target"] / 1e9)
+        )
+
+
+    def test_l1_table(self):
+        import json
+
+        fees = json.loads((ROOT / "static_files/l1-genesis.json").read_text())["config"]["feeConfig"]
+        for field, value in fees.items():
+            if field == "targetBlockRate":
+                continue  # No effect since Granite; the table leaves it out.
+            shown = "{:g} gwei".format(value / 1e9) if field == "minBaseFee" else "{:,}".format(value)
+            row = "`targetGas` (per 10 s)" if field == "targetGas" else "`{}`".format(field)
+            with self.subTest(field=field):
+                self.assertEqual(self.cell(row), shown)
 
 class RepositoryDocsTest(unittest.TestCase):
     """The prose documents name files and versions that exist."""

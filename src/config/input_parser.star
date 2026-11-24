@@ -98,8 +98,51 @@ DEFAULT_NODE_CONFIG = {
     "snow-sample-size": 3,
     "snow-preference-quorum-size": 2,
     "snow-confidence-quorum-size": 2,
+    # Fees of Avalanche Mainnet (MainnetParams in genesis/genesis_mainnet.go).
+    # For any other network ID AvalancheGo uses LocalParams, which are lower.
+    # Every node checks P-Chain blocks against these values, the L1 nodes
+    # included. To change one for the whole network, set it in the top-level
+    # `node_config`; a value in only one section makes the other nodes reject
+    # its P-Chain blocks.
+    #
+    # An L1 validator pays the P-Chain a continuous fee from its balance: at
+    # least 512 nAVAX per second (about 1.33 AVAX per 30 days; LocalParams:
+    # 1 nAVAX). The price rises while more than 10,000 L1 validators are
+    # active. At the capacity of 20,000 it doubles once a day (LocalParams:
+    # once a minute).
+    "validator-fees-min-price": 512,
+    "validator-fees-excess-conversion-constant": 1246488515,
+    # An X-Chain CreateAssetTx costs 0.01 AVAX, in nAVAX (LocalParams: 0.001).
+    "create-asset-tx-fee": 10000000,
 }
 
+
+# C-Chain config options that the package changes from the upstream defaults.
+# Any of them can be overridden through `primary_network.c_chain_config`.
+#
+# The C-Chain has no fixed gas limit or block time. Each validator votes for
+# three values when it builds a block, and every block moves each value a
+# bounded step toward the vote:
+#
+#   gas-target        gas per second at which the gas price stays stable
+#                     (ACP-176). The block gas limit follows it: 20 times
+#                     the target.
+#   min-delay-target  minimum time between two blocks, in milliseconds
+#                     (ACP-226)
+#   min-price-target  lowest gas price, in wei (aAVAX) (ACP-283)
+#
+# The values below are those of Avalanche Mainnet, decoded from its block
+# headers: 4,000,000 gas per second (a block gas limit of 80,000,000), 700 ms,
+# and 7.5 gwei. A new chain starts from the protocol's initial values
+# (1,000,000 gas per second, 2000 ms, 1 wei; vms/saevm/cchain/dynamic) and
+# needs many blocks to reach the votes: about 1,400 for the gas target, 5,500
+# for the delay, and 118,000 for the price, which doubles at most once per
+# 3,600 blocks. docs/network-parameters.md compares them with Fuji.
+DEFAULT_C_CHAIN_CONFIG = {
+    "gas-target": 4000000,
+    "min-delay-target": 700,
+    "min-price-target": 7500000000,
+}
 
 # Subnet-EVM chain config options that the package changes from the upstream
 # defaults. Any of them can be overridden through `l1.chain_config`.
@@ -161,15 +204,17 @@ def parse(input_args):
         node_config.update(args[section]["node_config"])
         args[section]["node_config"] = node_config
 
+    # The user's values win; sanity_check rejects those that the explorer
+    # cannot work with.
+    c_chain_config = dict(DEFAULT_C_CHAIN_CONFIG)
     l1_chain_config = dict(DEFAULT_L1_CHAIN_CONFIG)
     if args["explorer"]:
-        # The user's values win; sanity_check rejects those that the explorer
-        # cannot work with.
+        c_chain_config.update(EXPLORER_CHAIN_CONFIG)
         l1_chain_config.update(EXPLORER_CHAIN_CONFIG)
         l1_chain_config["eth-apis"] = list(EXPLORER_L1_ETH_APIS)
-        args["primary_network"]["c_chain_config"] = (
-            EXPLORER_CHAIN_CONFIG | args["primary_network"]["c_chain_config"]
-        )
+    args["primary_network"]["c_chain_config"] = (
+        c_chain_config | args["primary_network"]["c_chain_config"]
+    )
     args["l1"]["chain_config"] = l1_chain_config | args["l1"]["chain_config"]
 
     return args
