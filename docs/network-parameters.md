@@ -84,3 +84,34 @@ The functions of `vms/saevm/cchain/dynamic` turn the exponents into values:
 | Gas target, gas/s | 1,000,000 × e^(`targetExponent` / 2^25) |
 | Minimum block delay, ms | e^(`minDelayExcess` / 2^20) |
 | Minimum gas price, wei | e^(`minPriceExponent` / 415,828,534,307,635,077) |
+
+## L1
+
+An L1 has no Mainnet value: each L1 chooses its own fee config in its genesis, and the genesis is final once the L1 exists. The package starts from the Subnet-EVM default fee config (`DefaultFeeConfig` in `graft/subnet-evm/params/extras/config.go`), the only standard in the pinned code. It is also the C-Chain fee config from before ACP-176. Avalanche CLI starts from the same values (`StarterFeeConfig` of `avalanche-tooling-sdk-go`), then replaces the gas limit and the target with its throughput preset. The Builder Console preselects its Testnet preset. No tool therefore produces exactly this config by default. Set `l1.genesis.config.feeConfig` to use other values (`docs/config/l1-genesis.yml`).
+
+| Field | Devnet (Subnet-EVM default) | Avalanche CLI, test and production defaults | Builder Console, Mainnet preset | Builder Console, Testnet preset |
+| --- | --- | --- | --- | --- |
+| `gasLimit` | 8,000,000 | 8,000,000 | 15,000,000 | 100,000,000 |
+| `minBaseFee` | 25 gwei | 25 gwei | 25 gwei | 1 gwei |
+| `targetGas` (per 10 s) | 15,000,000 | 40,000,000 | 15,000,000 | 100,000,000 |
+| `baseFeeChangeDenominator` | 36 | 36 | 48 | 48 |
+| `minBlockGasCost` | 0 | 0 | 0 | 0 |
+| `maxBlockGasCost` | 1,000,000 | 1,000,000 | 1,000,000 | 0 |
+| `blockGasCostStep` | 200,000 | 200,000 | 200,000 | 0 |
+| Minimum block delay | 2,000 ms | 2,000 ms | 2,000 ms | 2,000 ms |
+
+Sources:
+
+- Avalanche CLI v1.9.7: `pkg/vm/evm_settings.go`, `pkg/vm/fees.go`, and `pkg/vm/evm_prompts.go`, and `StarterFeeConfig` in `vm/evm_settings.go` of `avalanche-tooling-sdk-go`. Its test and production defaults select "low throughput" with constant gas prices. That sets `gasLimit` to 8,000,000 (the prompt text says 12 million) and `targetGas` to 5 times the gas limit, so that the base fee never rises.
+- Builder Console: `components/toolbox/components/genesis/FeeConfig.tsx` and `components/toolbox/console/layer-1/create/GenesisBuilder.tsx` in `ava-labs/builders-hub`.
+- Minimum block delay: 0 for `initialMinDelayMS` selects the ACP-226 initial value of 2,000 ms (`vms/evm/acp226`). The Builder Console node setup also uses 2,000 ms for `min-delay-target`.
+
+The Granite upgrade replaced the block gas cost with the ACP-226 minimum block delay. On this devnet the block gas cost is always 0, but Subnet-EVM still requires `targetBlockRate`, `minBlockGasCost`, `maxBlockGasCost`, and `blockGasCostStep` to be valid.
+
+### Gas limit and the size of a PoA validator set
+
+The ValidatorManager contract registers the first validators of an L1 in one transaction, `initializeValidatorSet`. On this devnet it used about 227,000 gas plus about 123,500 gas per validator. With a block gas limit of 8,000,000, a PoA L1 can therefore start with at most about 60 validators (`l1.validator_count`). For a larger set, raise `gasLimit`. A PoS L1 starts with at most 20 bootstrap validators and is not affected.
+
+### Differences on purpose
+
+The staking rules of a PoS L1 are test values (`static_files/scripts/staking.sh`): a minimum stake of 1 token, a minimum stake duration of 60 seconds, and no rewards. They let the setup stake and remove validators within a few minutes. An L1 chooses these rules when it deploys its staking manager, so no network-wide standard exists.

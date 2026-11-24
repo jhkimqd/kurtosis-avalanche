@@ -383,6 +383,27 @@ class ArgumentsFilesTest(unittest.TestCase):
         )
         self.assertEqual(example["l1"]["validator_management"], "poa")
 
+    def test_base_genesis_uses_the_subnet_evm_default_fees(self):
+        # DefaultFeeConfig in graft/subnet-evm/params/extras/config.go of the
+        # pinned AvalancheGo.
+        base = json.loads((ROOT / "static_files/l1-genesis.json").read_text())
+        self.assertEqual(
+            base["config"]["feeConfig"],
+            {
+                "gasLimit": 8000000,
+                "minBaseFee": 25000000000,
+                "targetGas": 15000000,
+                "baseFeeChangeDenominator": 36,
+                "minBlockGasCost": 0,
+                "maxBlockGasCost": 1000000,
+                "targetBlockRate": 2,
+                "blockGasCostStep": 200000,
+            },
+        )
+        # ACP-226: without initialMinDelayMS, a block follows its parent after
+        # 2000 ms at the earliest, the upstream and Builder Console default.
+        self.assertNotIn("initialMinDelayMS", base["config"])
+
 
 class ContractArtifactTest(unittest.TestCase):
     def test_required_contract_hashes(self):

@@ -204,7 +204,7 @@ class L1GenesisTest(unittest.TestCase):
 
     def test_null_keeps_and_lists_replace(self):
         genesis = self.genesis({"config": {"feeConfig": None, "warpConfig": {"quorumNumerator": 80}}, "extraData": None})
-        self.assertEqual(genesis["config"]["feeConfig"]["gasLimit"], 20000000)
+        self.assertEqual(genesis["config"]["feeConfig"]["gasLimit"], 8000000)
         self.assertEqual(genesis["config"]["warpConfig"]["quorumNumerator"], 80)
         self.assertTrue(genesis["config"]["warpConfig"]["requirePrimaryNetworkSigners"])
         self.assertEqual(genesis["extraData"], "0x00")

@@ -27,20 +27,26 @@ l1:
       # Gas fees. Every transaction pays `gas used * gas price` in the native
       # token of the L1. The fee is burned, unless `allowFeeRecipients` or the
       # reward manager precompile sends it to an address.
+      #
+      # The values below are the Subnet-EVM default fee config
+      # (DefaultFeeConfig in graft/subnet-evm/params/extras/config.go).
+      # Avalanche CLI starts from the same values and then sets the gas limit
+      # and the target from a throughput preset. docs/network-parameters.md
+      # compares them with the Avalanche CLI and Builder Console defaults.
       feeConfig:
         # Maximum gas that one block can use. The package copies the value
         # into the `gasLimit` of the genesis header, which must be the same.
-        #gasLimit: 20000000
+        #gasLimit: 8000000
 
         # Lowest base fee (gas price), in wei. 1000000000 wei = 1 gwei.
-        #minBaseFee: 1000000000
+        #minBaseFee: 25000000000
 
         # Gas use per rolling 10 seconds that keeps the base fee stable. The
         # base fee rises when the chain uses more, and falls when it uses less.
-        #targetGas: 100000000
+        #targetGas: 15000000
 
         # Speed of base fee changes. A larger value makes the fee change slower.
-        #baseFeeChangeDenominator: 48
+        #baseFeeChangeDenominator: 36
 
         # Block gas cost: before the Granite upgrade, a block paid an extra fee
         # when it came sooner than `targetBlockRate` seconds after its parent.
@@ -48,8 +54,8 @@ l1:
         # The four fields must still be present and valid.
         #targetBlockRate: 2
         #minBlockGasCost: 0
-        #maxBlockGasCost: 10000000
-        #blockGasCostStep: 500000
+        #maxBlockGasCost: 1000000
+        #blockGasCostStep: 200000
 
       # Let each block builder collect the transaction fees instead of burning
       # them. A validator names its address with `feeRecipient` in the chain
@@ -58,8 +64,9 @@ l1:
 
       # Minimum time between two blocks at genesis, in milliseconds (ACP-226).
       # 0 selects the upstream default of about 2000 ms, which is also the
-      # largest value that Subnet-EVM accepts here. Validators can move the
-      # value later with `min-delay-target` in the chain config.
+      # largest value that Subnet-EVM accepts here and the default of the
+      # Builder Console. Validators can move the value later with
+      # `min-delay-target` in the chain config.
       #initialMinDelayMS: 0
 
       # Precompiles are contracts that are built into Subnet-EVM. Each one is

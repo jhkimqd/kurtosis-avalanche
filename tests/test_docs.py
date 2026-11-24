@@ -139,6 +139,17 @@ class NetworkParametersDocTest(unittest.TestCase):
         )
 
 
+    def test_l1_table(self):
+        import json
+
+        fees = json.loads((ROOT / "static_files/l1-genesis.json").read_text())["config"]["feeConfig"]
+        for field, value in fees.items():
+            if field == "targetBlockRate":
+                continue  # No effect since Granite; the table leaves it out.
+            shown = "{:g} gwei".format(value / 1e9) if field == "minBaseFee" else "{:,}".format(value)
+            row = "`targetGas` (per 10 s)" if field == "targetGas" else "`{}`".format(field)
+            with self.subTest(field=field):
+                self.assertEqual(self.cell(row), shown)
 
 class RepositoryDocsTest(unittest.TestCase):
     """The prose documents name files and versions that exist."""
