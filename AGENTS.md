@@ -67,7 +67,7 @@ Run a live deployment before you report a change to `src/`, `tools/`, or `static
 | `docs/observability.md` | The observability stack: dashboards, labels, and limits. |
 | `docs/explorer.md` | The block explorers: addresses, node changes, the P-Chain and X-Chain APIs, and limits. |
 | `docs/adr/` | Architecture decision records. |
-| `helpers/` | `endpoints.sh` (print the addresses of a running devnet), `check-devnet.sh` (check a running devnet), `check-observability.sh` (check its observability stack), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`, `gen-dashboards.py`. |
+| `helpers/` | Tools that run on your machine and in CI, never in the enclave: `endpoints.sh` (print the addresses of a running devnet), `check-devnet.sh` (check a running devnet), `check-observability.sh` (check its observability stack), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `export-contracts.py` (runs in the contract build), `gen-config-reference.py`, `gen-dashboards.py`, `watch-versions.py` (report upstream releases). The setup scripts that run in the tools service live in `static_files/scripts/`. |
 | `tests/` | Python unit tests. `tests/starlark.py` loads the Starlark modules in Python. |
 
 ## Where to make a change
