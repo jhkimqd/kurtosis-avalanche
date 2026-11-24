@@ -15,7 +15,7 @@ ADR 0014 explains the choice of Blockscout and of its version, ADR 0017 why it r
 Kurtosis publishes each explorer on a random port of this machine. This script prints the address of each explorer and of its API:
 
 ```sh
-bash scripts/endpoints.sh <enclave>
+bash helpers/endpoints.sh <enclave>
 ```
 
 The service `<chain>-explorer` is the address to open: `c-chain-explorer` for the C-Chain, `l1-<n>-explorer` for L1 number n.
@@ -112,7 +112,7 @@ These remain, and Blockscout 9.0.2 has no setting to hide them:
 
 ## Resources
 
-Measured on `examples/pos.yml` with `explorer: true`, after the deployment and `scripts/check-devnet.sh`:
+Measured on `examples/pos.yml` with `explorer: true`, after the deployment and `helpers/check-devnet.sh`:
 
 | Service | Memory used | Limit |
 | --- | --- | --- |
@@ -125,6 +125,6 @@ Each chain adds about 600 MB. The four images take about 1.4 GB of disk.
 
 ## Check the explorers
 
-`bash scripts/check-devnet.sh <enclave>` sends transactions on each chain. With explorers, it then checks that each explorer has indexed those transactions and every internal call, and that each web app answers.
+`bash helpers/check-devnet.sh <enclave>` sends transactions on each chain. With explorers, it then checks that each explorer has indexed those transactions and every internal call, and that each web app answers.
 
 Read the log of an explorer with `kurtosis service logs <enclave> c-chain-explorer-api`. A log line with `-32601` says that the node does not serve a method that the explorer needs.

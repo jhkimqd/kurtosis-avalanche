@@ -2,7 +2,7 @@
 
 Grafana reads its setup from files at start ("provisioning"): the datasources
 that this module renders, and the dashboards in
-static_files/observability/grafana/dashboards/. scripts/gen-dashboards.py
+static_files/observability/grafana/dashboards/. helpers/gen-dashboards.py
 generates those dashboards.
 """
 
@@ -17,7 +17,7 @@ DASHBOARDS_PATH = "/dashboards"  # one subdirectory per dashboard group
 DASHBOARDS_SOURCE = "../../static_files/observability/grafana/dashboards"
 
 # Datasource UIDs. The dashboards select a datasource by type, so a UID only
-# has to be stable for links and for scripts/check-observability.sh.
+# has to be stable for links and for helpers/check-observability.sh.
 PROMETHEUS_UID = "prometheus"
 LOKI_UID = "loki"
 
@@ -88,7 +88,7 @@ def launch(plan, args, prometheus, loki):
                             "folder": "Avalanche devnet",
                             "type": "file",
                             # The files are the source: change a dashboard in
-                            # scripts/gen-dashboards.py, not in the UI.
+                            # helpers/gen-dashboards.py, not in the UI.
                             "allowUiUpdates": False,
                             "disableDeletion": True,
                             "options": {

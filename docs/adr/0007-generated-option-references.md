@@ -10,7 +10,7 @@ ADR 0006 exposes every AvalancheGo option, so a new user needs to know what exis
 
 `docs/config/` holds one reference file per config. Each is a commented arguments file: to use an option, copy its line and remove the `#`.
 
-- `scripts/gen-config-reference.py` generates `node.yml` from `avalanchego --help` of the pinned image. It generates `l1-chain.yml` and `c-chain.yml` from an AvalancheGo checkout at the pinned commit: option names and types from the JSON tags in `config.go`, descriptions from `config.md`, and Subnet-EVM defaults from `default_config.go`.
+- `helpers/gen-config-reference.py` generates `node.yml` from `avalanchego --help` of the pinned image. It generates `l1-chain.yml` and `c-chain.yml` from an AvalancheGo checkout at the pinned commit: option names and types from the JSON tags in `config.go`, descriptions from `config.md`, and Subnet-EVM defaults from `default_config.go`.
 - `l1-genesis.yml`, `l1-subnet.yml`, and `p-x-chain.yml` are written by hand from the Go sources, which they cite. Upstream has no table to generate them from.
 - `node.yml` marks each managed flag and each package default.
 - `tests/test_docs.py` checks that the managed flags and the package defaults match the code, that each file sets nothing as written, and that each file is a valid arguments file once every option is turned on.

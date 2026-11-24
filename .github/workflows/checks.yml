@@ -24,15 +24,15 @@ jobs:
       # The runner image ships shellcheck.
       - run: shellcheck -x -P static_files/scripts static_files/scripts/*.sh
       # The tools image holds released tools only; the build checks their sums.
-      - run: bash scripts/build.sh
+      - run: bash helpers/build.sh
       # Generate identities with the pinned AvalancheGo and check the genesis.
       - run: >-
           docker run --rm -v "$PWD/static_files:/fixtures:ro" avalanche-tools:local bash -c
           'bash /fixtures/scripts/network.sh prepare /tmp/network 4 2
           && jq -e "(.initialStakers | length) == 2 and all(.initialStakers[]; .signer.proofOfPossession | length == 194)" /tmp/network/genesis.json
           && jq -e ".nodes | length == 4" /tmp/network/network.json'
-      - run: bash scripts/check-contracts.sh
+      - run: bash helpers/check-contracts.sh
       # Lint, then plan every file in examples/ and .github/configs/.
-      - run: bash scripts/check-package.sh
+      - run: bash helpers/check-package.sh
       # `alloy validate` misses some load errors, so this starts Alloy.
-      - run: bash scripts/check-alloy.sh
+      - run: bash helpers/check-alloy.sh

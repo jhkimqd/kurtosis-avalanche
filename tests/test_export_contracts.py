@@ -33,7 +33,7 @@ class ExportContractsTest(unittest.TestCase):
             cash = work / "contracts/out/CashToken.sol/CashToken.json"
             data = cash.read_bytes()
             cash.unlink()
-            command = [sys.executable, str(ROOT / "scripts/export-contracts.py")]
+            command = [sys.executable, str(ROOT / "helpers/export-contracts.py")]
             failed = subprocess.run(command, cwd=work, capture_output=True, text=True)
             self.assertNotEqual(failed.returncode, 0)
             self.assertIn("CashToken.json", failed.stderr)

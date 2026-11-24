@@ -18,7 +18,7 @@
 # Kurtosis publishes every port on a random port of this machine. This
 # command prints the RPC URL of each chain, the explorers, and Grafana:
 #
-#   bash scripts/endpoints.sh <enclave>
+#   bash helpers/endpoints.sh <enclave>
 #
 # During setup it also runs 4 temporary nodes, l1-0-bootstrap-0 .. -3, and
 # removes them (see "Staking" below). One minute of the run is a wait before
@@ -162,7 +162,7 @@ dashboards: true
 # every L1. Each indexes its chain from block 0, with internal transactions,
 # token transfers, and event logs. It adds a PostgreSQL database and, per
 # chain, an indexer, a web app, and an nginx proxy that serves both on one
-# address: about 600 MB of memory per chain. scripts/endpoints.sh prints the
+# address: about 600 MB of memory per chain. helpers/endpoints.sh prints the
 # address of each explorer. The P-Chain and the X-Chain are not EVM chains; no
 # explorer covers them. With `explorer: true` the nodes keep the state of every
 # block, and the L1 nodes serve the `debug_trace*` methods: docs/explorer.md.

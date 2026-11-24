@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate the Grafana dashboards in static_files/observability/grafana/.
 
-    python3 scripts/gen-dashboards.py            write the dashboard files
-    python3 scripts/gen-dashboards.py --queries  print every query as JSON
+    python3 helpers/gen-dashboards.py            write the dashboard files
+    python3 helpers/gen-dashboards.py --queries  print every query as JSON
 
 The dashboards follow the Avalanche production dashboards: the L1 dashboard
 (rows Consensus, System Usage, Chain Networking, EVM Block Processing, EVM Tx
@@ -19,7 +19,7 @@ and the main node dashboard. Three things differ on a devnet:
 Each panel is one call below: its title, a description for the (i) of the
 panel, and its queries. Change a panel here, run this script, and commit the
 JSON files; a test compares them. `--queries` feeds
-scripts/check-observability.sh, which runs each query on a live devnet.
+helpers/check-observability.sh, which runs each query on a live devnet.
 """
 
 import argparse

@@ -111,7 +111,7 @@ class RepositoryDocsTest(unittest.TestCase):
 
     def test_named_repository_paths_exist(self):
         # A path in backticks that starts with a top-level directory of the repository.
-        pattern = r"`((?:src|tools|tests|scripts|examples|docs|static_files|contracts|\.github)/[^`*<> ]+)`"
+        pattern = r"`((?:src|tools|tests|helpers|examples|docs|static_files|contracts|\.github)/[^`*<> ]+)`"
         for document in self.documents + sorted(ROOT.glob("examples/*.yml")):
             # A superseded decision is a record of its time; its files may be gone.
             if re.search(r"^Status: .*[Ss]uperseded", document.read_text(), re.M):

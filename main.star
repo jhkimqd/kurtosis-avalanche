@@ -93,7 +93,7 @@ def run(plan, args={}):
             if url
         },
         # One explorer per EVM chain. Its address on this machine is the
-        # published port of its service: scripts/endpoints.sh prints it.
+        # published port of its service: helpers/endpoints.sh prints it.
         "explorers": explorers,
         "args": args,
     }

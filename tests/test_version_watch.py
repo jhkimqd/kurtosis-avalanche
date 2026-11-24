@@ -12,7 +12,7 @@ from urllib.error import HTTPError
 
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("watch_versions", ROOT / "scripts/watch-versions.py")
+spec = importlib.util.spec_from_file_location("watch_versions", ROOT / "helpers/watch-versions.py")
 watch = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(watch)
 

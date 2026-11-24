@@ -10,7 +10,7 @@ This file guides coding agents and human contributors. Read it before you change
 kurtosis engine start
 kurtosis run --enclave avalanche . --args-file examples/poa.yml   # 4 nodes and 2 explorers, about 1.5 minutes; or:
 kurtosis run --enclave avalanche . --args-file examples/pos.yml   # 5 staked validators, bridge, Grafana, explorers
-bash scripts/endpoints.sh avalanche                               # RPC URLs, explorers, Grafana on this machine
+bash helpers/endpoints.sh avalanche                               # RPC URLs, explorers, Grafana on this machine
 kurtosis enclave rm -f avalanche                                  # remove the network
 ```
 
@@ -22,16 +22,16 @@ Use a new enclave for each run. The tools refuse to replay the state of one depl
 kurtosis lint --format . && kurtosis lint .   # format and lint the Starlark (black)
 kurtosis lint -c .                            # check the docstrings
 python3 -m unittest discover -s tests         # unit tests (seconds)
-bash scripts/check-package.sh                 # lint, then plan every arguments file (starts no node)
-bash scripts/check-alloy.sh                   # load the Alloy pipelines in the pinned Alloy
+bash helpers/check-package.sh                 # lint, then plan every arguments file (starts no node)
+bash helpers/check-alloy.sh                   # load the Alloy pipelines in the pinned Alloy
 shellcheck -x -P static_files/scripts static_files/scripts/*.sh   # lint the setup scripts
-bash scripts/build.sh                         # build the tools image (released tools only)
-python3 scripts/gen-config-reference.py       # regenerate node.yml, l1-chain.yml, c-chain.yml
-python3 scripts/gen-dashboards.py             # regenerate the Grafana dashboards
+bash helpers/build.sh                         # build the tools image (released tools only)
+python3 helpers/gen-config-reference.py       # regenerate node.yml, l1-chain.yml, c-chain.yml
+python3 helpers/gen-dashboards.py             # regenerate the Grafana dashboards
 kurtosis run --enclave <new-enclave> . --args-file examples/poa.yml   # live run
-bash scripts/endpoints.sh <enclave>           # its addresses on this machine
-bash scripts/check-devnet.sh <enclave>        # check a running devnet from the outside
-bash scripts/check-observability.sh <enclave> # check its metrics, logs, and dashboards
+bash helpers/endpoints.sh <enclave>           # its addresses on this machine
+bash helpers/check-devnet.sh <enclave>        # check a running devnet from the outside
+bash helpers/check-observability.sh <enclave> # check its metrics, logs, and dashboards
 ```
 
 The tests that read YAML need PyYAML and skip without it. A change is not verified while they skip. With `CI` set, a missing PyYAML is an error.
@@ -67,7 +67,7 @@ Run a live deployment before you report a change to `src/`, `tools/`, or `static
 | `docs/observability.md` | The observability stack: dashboards, labels, and limits. |
 | `docs/explorer.md` | The block explorers: addresses, node changes, the P-Chain and X-Chain APIs, and limits. |
 | `docs/adr/` | Architecture decision records. |
-| `scripts/` | `endpoints.sh` (print the addresses of a running devnet), `check-devnet.sh` (check a running devnet), `check-observability.sh` (check its observability stack), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`, `gen-dashboards.py`. |
+| `helpers/` | `endpoints.sh` (print the addresses of a running devnet), `check-devnet.sh` (check a running devnet), `check-observability.sh` (check its observability stack), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`, `gen-dashboards.py`. |
 | `tests/` | Python unit tests. `tests/starlark.py` loads the Starlark modules in Python. |
 
 ## Where to make a change
@@ -81,11 +81,11 @@ Run a live deployment before you report a change to `src/`, `tools/`, or `static
 | Add a setup step | a function and a subcommand in `static_files/scripts/<concern>.sh` → its caller in `src/` (`tools.run_script`) → `tests/test_scripts.py` for new encoding helpers or contract methods |
 | Bump `platform-cli` or `cast` | the version and both SHA-256 sums in `tools/Dockerfile` (cast follows the Foundry version of `contracts/Dockerfile`) → live run of both examples |
 | Add a service | `src/<name>/launcher.star` with `launch(plan, args, ...)` → `main.star` or `src/l1/launcher.star` → image in `IMAGES` → the planning function of the launcher (`planned_nodes`, `planned`), if the service serves metrics |
-| Add or change a dashboard panel | `scripts/gen-dashboards.py` → `python3 scripts/gen-dashboards.py` → commit the JSON → live run → `bash scripts/check-observability.sh <enclave>`, and look at the panel with data |
-| Change what Alloy collects | `static_files/observability/alloy/` → the target files in `src/observability/alloy.star` → `bash scripts/check-alloy.sh` → live run |
-| Bump an explorer image (`blockscout`, `blockscout_frontend`, `postgres`, `nginx`) | `IMAGES` in `constants.star` (digest of the multi-platform index) → the version in `README.md`, `examples/pos.yml`, and `docs/explorer.md` → live run → `bash scripts/check-devnet.sh <enclave>` |
-| Bump an observability image | `IMAGES` in `constants.star` (digest of the multi-platform index) → the version in `README.md` and `examples/pos.yml` → `bash scripts/check-alloy.sh` → live run of `examples/pos.yml` |
-| Change a contract artifact | `contracts/` → `bash scripts/check-contracts.sh refresh` → review the diff |
+| Add or change a dashboard panel | `helpers/gen-dashboards.py` → `python3 helpers/gen-dashboards.py` → commit the JSON → live run → `bash helpers/check-observability.sh <enclave>`, and look at the panel with data |
+| Change what Alloy collects | `static_files/observability/alloy/` → the target files in `src/observability/alloy.star` → `bash helpers/check-alloy.sh` → live run |
+| Bump an explorer image (`blockscout`, `blockscout_frontend`, `postgres`, `nginx`) | `IMAGES` in `constants.star` (digest of the multi-platform index) → the version in `README.md`, `examples/pos.yml`, and `docs/explorer.md` → live run → `bash helpers/check-devnet.sh <enclave>` |
+| Bump an observability image | `IMAGES` in `constants.star` (digest of the multi-platform index) → the version in `README.md` and `examples/pos.yml` → `bash helpers/check-alloy.sh` → live run of `examples/pos.yml` |
+| Change a contract artifact | `contracts/` → `bash helpers/check-contracts.sh refresh` → review the diff |
 | Add a CI-only network | `.github/configs/<name>.yml` → the matrix in `.github/workflows/integration.yml` |
 
 `examples/pos.yml` must name every argument with its default, except `images`, which it shows as a comment. `examples/` holds exactly two files. The tests enforce both rules.
@@ -101,10 +101,10 @@ Run a live deployment before you report a change to `src/`, `tools/`, or `static
 | Funded account (EWOQ) | `0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC` |
 | EWOQ private key | `0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027` (public; devnet only) |
 | ValidatorManager on every L1 | `0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25` |
-| RPC on the host | A random port per service (ADR 0019): `bash scripts/endpoints.sh <enclave>`. P-, X-, C-Chain on `primary-0` (`/ext/bc/C/rpc`), L1 `n` on `l1-<n>-rpc-0` (`/ext/bc/<blockchain-id>/rpc`) |
+| RPC on the host | A random port per service (ADR 0019): `bash helpers/endpoints.sh <enclave>`. P-, X-, C-Chain on `primary-0` (`/ext/bc/C/rpc`), L1 `n` on `l1-<n>-rpc-0` (`/ext/bc/<blockchain-id>/rpc`) |
 | Devnet description | `/opt/networks/<network>/` in the `tools` service (`primary-network`, `l1-<i>`), also the artifact `network-description`; written by `static_files/scripts/describe-networks.sh` |
 | Grafana | `kurtosis port print <enclave> grafana http`; no login to look, `admin` / `admin` to edit |
-| Explorers (default; `explorer: false` turns them off) | `c-chain-explorer`, `l1-<n>-explorer` (nginx in front of the web app and the API); `bash scripts/endpoints.sh <enclave>` prints the addresses; API under `/api/v2` |
+| Explorers (default; `explorer: false` turns them off) | `c-chain-explorer`, `l1-<n>-explorer` (nginx in front of the web app and the API); `bash helpers/endpoints.sh <enclave>` prints the addresses; API under `/api/v2` |
 
 Service names: `primary-<n>`, `l1-<i>-validator-<n>`, `l1-<i>-rpc-<n>`, `l1-<i>-bootstrap-<n>` (temporary, PoS setup only), `l1-<i>-aggregator`, `l1-<i>-relayer`, `alloy`, `prometheus`, `loki`, `grafana`, `explorer-db`, `c-chain-explorer-api`, `c-chain-explorer-web`, `c-chain-explorer`, `l1-<i>-explorer-api`, `l1-<i>-explorer-web`, `l1-<i>-explorer`, `tools`. All indexes start at 0.
 
@@ -144,8 +144,8 @@ These follow kurtosis-pos (`src/config/`, launcher contract) and kurtosis-cdk (`
 - Section headers in Starlark and YAML use this form: `# ── Name ───`.
 - A comment states what the code does or why. It does not tell the history of a change.
 - In an arguments file, a comment above a key says what the key does, its unit, and its limits.
-- `docs/config/node.yml`, `l1-chain.yml`, and `c-chain.yml` are generated. Change `scripts/gen-config-reference.py`, not the files. The other files in `docs/config/` are written by hand from the upstream Go sources; cite the source file.
-- The dashboards in `static_files/observability/grafana/dashboards/` are generated. Change `scripts/gen-dashboards.py`, not the files. Give every panel a description that says what the panel shows and how to read it. Use only a metric that you saw on a live devnet.
+- `docs/config/node.yml`, `l1-chain.yml`, and `c-chain.yml` are generated. Change `helpers/gen-config-reference.py`, not the files. The other files in `docs/config/` are written by hand from the upstream Go sources; cite the source file.
+- The dashboards in `static_files/observability/grafana/dashboards/` are generated. Change `helpers/gen-dashboards.py`, not the files. Give every panel a description that says what the panel shows and how to read it. Use only a metric that you saw on a live devnet.
 - Keep `README.md` short: what the package does, how to run it, how to configure it. Put detail in `docs/`.
 - State only what you verified against the code, the pinned upstream commit, or a live run.
 
@@ -153,9 +153,9 @@ These follow kurtosis-pos (`src/config/`, launcher contract) and kurtosis-cdk (`
 
 1. `kurtosis lint .` reports nothing.
 2. `python3 -m unittest discover -s tests` passes with PyYAML installed.
-3. `bash scripts/check-package.sh` plans every arguments file.
-4. `bash scripts/build.sh` passes if `tools/` changed. shellcheck passes if `static_files/scripts/` changed. `bash scripts/check-alloy.sh` passes if `static_files/observability/alloy/` changed.
-5. `kurtosis run --enclave <new-enclave> . --args-file examples/poa.yml` passes if `src/`, `tools/`, or `static_files/scripts/` changed. Also run `examples/pos.yml` if the change touches staking, the bridge, node config, or the observability stack; then `bash scripts/check-observability.sh <enclave>` passes. Both examples run the explorers; then `bash scripts/check-devnet.sh <enclave>` passes.
+3. `bash helpers/check-package.sh` plans every arguments file.
+4. `bash helpers/build.sh` passes if `tools/` changed. shellcheck passes if `static_files/scripts/` changed. `bash helpers/check-alloy.sh` passes if `static_files/observability/alloy/` changed.
+5. `kurtosis run --enclave <new-enclave> . --args-file examples/poa.yml` passes if `src/`, `tools/`, or `static_files/scripts/` changed. Also run `examples/pos.yml` if the change touches staking, the bridge, node config, or the observability stack; then `bash helpers/check-observability.sh <enclave>` passes. Both examples run the explorers; then `bash helpers/check-devnet.sh <enclave>` passes.
 6. Remove the enclaves that you started.
 
 ## Decisions and commits

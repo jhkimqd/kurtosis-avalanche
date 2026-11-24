@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Check a running devnet from the outside: bash scripts/check-devnet.sh <enclave>
+# Check a running devnet from the outside: bash helpers/check-devnet.sh <enclave>
 #
 # The package already tests each network that it deploys. This script repeats
 # the important checks with independent tools, at any later time:
@@ -11,11 +11,11 @@
 #   4. Transactions on the C-Chain and on each L1: a transfer from the funded
 #      account, a contract deployment, contract calls, and new blocks.
 #   5. Every node of an L1 holds the same latest block. Each chain answers
-#      on the address of this machine that scripts/endpoints.sh prints.
+#      on the address of this machine that helpers/endpoints.sh prints.
 #   6. With `explorer`, each explorer holds the transactions of step 4 and
 #      their token transfer, the internal calls of a contract that makes them,
 #      and reports its indexing finished; its web app and its live updates
-#      answer on the address that scripts/endpoints.sh prints.
+#      answer on the address that helpers/endpoints.sh prints.
 #
 # It needs Docker, the Kurtosis CLI, curl, and jq. It signs with the public
 # EWOQ development key and sends a few transactions. Foundry's `cast` runs in a
@@ -39,7 +39,7 @@ kurtosis files download "$enclave" deployment-manifest "$work/manifest" >/dev/nu
     { echo "Cannot read the deployment manifest of enclave $enclave" >&2; exit 1; }
 manifest=$work/manifest/deployment.json
 # The addresses on this machine: Kurtosis publishes every port on a random one.
-bash scripts/endpoints.sh "$enclave" --json >"$work/endpoints.json" ||
+bash helpers/endpoints.sh "$enclave" --json >"$work/endpoints.json" ||
     { echo "Cannot read the published ports of enclave $enclave" >&2; exit 1; }
 endpoints=$work/endpoints.json
 # The contract that the script deploys: the CASH test token.
@@ -66,7 +66,7 @@ api() {
 }
 
 # check_host_rpc <url> <chain-id>: the chain answers on this machine at the
-# URL that scripts/endpoints.sh prints.
+# URL that helpers/endpoints.sh prints.
 check_host_rpc() {
     check "EVM chain ID at $1" "$(curl -s -m 10 -X POST -H 'content-type: application/json' \
         --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' "$1" |

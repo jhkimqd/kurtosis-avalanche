@@ -13,10 +13,10 @@ class PackageCheckTest(unittest.TestCase):
     def run_check(self, fail_plan):
         with tempfile.TemporaryDirectory() as directory:
             work = pathlib.Path(directory)
-            (work / "scripts").mkdir()
+            (work / "helpers").mkdir()
             (work / "examples").mkdir()
             (work / ".github/configs").mkdir(parents=True)
-            shutil.copyfile(ROOT / "scripts/check-package.sh", work / "scripts/check-package.sh")
+            shutil.copyfile(ROOT / "helpers/check-package.sh", work / "helpers/check-package.sh")
             (work / "examples/profile.yml").write_text("staking: poa\n")
             (work / ".github/configs/two-l1s.yml").write_text("l1:\n  count: 2\n")
             binary = work / "bin/kurtosis"
@@ -33,7 +33,7 @@ class PackageCheckTest(unittest.TestCase):
             binary.chmod(0o755)
             calls = work / "calls.log"
             result = subprocess.run(
-                ["bash", "scripts/check-package.sh"], cwd=work,
+                ["bash", "helpers/check-package.sh"], cwd=work,
                 env=dict(os.environ, PATH=str(binary.parent) + os.pathsep + os.environ["PATH"],
                          CALLS=str(calls), FAIL_PLAN=fail_plan),
                 capture_output=True, text=True,

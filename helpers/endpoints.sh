@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Print the addresses of a running devnet on this machine:
 #
-#   bash scripts/endpoints.sh <enclave> [--json]
+#   bash helpers/endpoints.sh <enclave> [--json]
 #
 # Kurtosis publishes every port of the devnet on a random port of this
 # machine, chosen when the service starts (ADR 0019). The deployment manifest
