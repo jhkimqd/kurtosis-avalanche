@@ -8,7 +8,7 @@ The package checks workflow plans deployments but does not execute their transac
 
 ## Decision
 
-Run the existing integration matrix on GitHub-hosted Ubuntu runners for pushes, pull requests, weekly schedules, and manual dispatch. Deploy each arguments file into a fresh enclave, execute the independent checks in `scripts/check-devnet.sh`, collect diagnostics, and remove that enclave even after failure.
+Run the existing integration matrix on GitHub-hosted Ubuntu runners for pushes, pull requests, weekly schedules, and manual dispatch. Deploy each arguments file into a fresh enclave, execute the independent checks in `helpers/check-devnet.sh`, collect diagnostics, and remove that enclave even after failure.
 
 Use a shared composite action to install the checksum-verified Kurtosis CLI and test dependencies. Run with read-only repository permissions, without repository secrets or a self-hosted runner. Pin external actions to commit hashes.
 

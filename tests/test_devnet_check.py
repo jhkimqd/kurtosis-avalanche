@@ -93,9 +93,9 @@ class DevnetCheckTest(unittest.TestCase):
     def run_check(self, cached=False, fail_pull=False):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
-            for folder in ("scripts", "contracts", "static_files/contracts", "bin"):
+            for folder in ("helpers", "contracts", "static_files/contracts", "bin"):
                 (work / folder).mkdir(parents=True)
-            for name in ("scripts/check-devnet.sh", "scripts/endpoints.sh", "contracts/Dockerfile"):
+            for name in ("helpers/check-devnet.sh", "helpers/endpoints.sh", "contracts/Dockerfile"):
                 shutil.copyfile(ROOT / name, work / name)
             (work / "static_files/contracts/CashToken.json").write_text(json.dumps({"bytecode": {"object": "0x00"}}))
             manifest = {
@@ -113,7 +113,7 @@ class DevnetCheckTest(unittest.TestCase):
                 binary.write_text("#!" + sys.executable + "\n" + STUB)
                 binary.chmod(0o755)
             result = subprocess.run(
-                ["bash", "scripts/check-devnet.sh", "test"], cwd=work,
+                ["bash", "helpers/check-devnet.sh", "test"], cwd=work,
                 env=dict(os.environ, PATH=str(work / "bin") + os.pathsep + os.environ["PATH"],
                          TEST_STATE=str(work), FAIL_PULL="yes" if fail_pull else "no"),
                 capture_output=True, text=True,

@@ -72,17 +72,17 @@ Metric names to start from: `avalanche_snowman_*` (consensus), `avalanche_networ
 ## Check the stack
 
 ```sh
-bash scripts/check-observability.sh avalanche
+bash helpers/check-observability.sh avalanche
 ```
 
 The script reads the arguments of the devnet from its manifest and checks what they enabled: every node, relayer, and signature aggregator is scraped; Loki holds lines of every node, with a level and at the time that the line states; every query of every dashboard returns data; Grafana reaches its datasources and has every dashboard. CI runs it after each deployment.
 
 ## Change a dashboard
 
-The dashboards are generated. Change `scripts/gen-dashboards.py`, then run:
+The dashboards are generated. Change `helpers/gen-dashboards.py`, then run:
 
 ```sh
-python3 scripts/gen-dashboards.py
+python3 helpers/gen-dashboards.py
 ```
 
 Commit the script and the JSON files together; a test compares them. Grafana does not save a change to one of these dashboards from the UI. A copy that you save under another name is lost when the enclave is removed.

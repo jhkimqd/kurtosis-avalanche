@@ -118,7 +118,7 @@ class DescribeNetworksTest(unittest.TestCase):
         self.assertEqual(primary["chains"][2]["evm_chain_id"], 88888)
         self.assertEqual(primary["chains"][2]["rpc_url"], "http://primary-0:9650/ext/bc/C/rpc")
         # Host ports are random and known only outside the enclave
-        # (scripts/endpoints.sh); the description holds no host address.
+        # (helpers/endpoints.sh); the description holds no host address.
         self.assertNotIn("127.0.0.1", json.dumps(primary))
         self.assertEqual(len(self.read("primary-network/blockchains.json")["blockchains"]), 3)
         self.assertEqual(self.read("primary-network/validators.json")["validators"][0]["nodeID"], "NodeID-primary")

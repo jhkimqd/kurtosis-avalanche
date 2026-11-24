@@ -1,4 +1,4 @@
-"""scripts/endpoints.sh joins the manifest with the ports that Kurtosis publishes."""
+"""helpers/endpoints.sh joins the manifest with the ports that Kurtosis publishes."""
 
 import json
 import os
@@ -77,7 +77,7 @@ class EndpointsTest(unittest.TestCase):
             binary.write_text("#!" + sys.executable + "\n" + STUB)
             binary.chmod(0o755)
             return subprocess.run(
-                ["bash", str(ROOT / "scripts/endpoints.sh"), "test", *options],
+                ["bash", str(ROOT / "helpers/endpoints.sh"), "test", *options],
                 env=dict(os.environ, PATH=str(work / "bin") + os.pathsep + os.environ["PATH"], TEST_STATE=str(work)),
                 capture_output=True, text=True,
             )

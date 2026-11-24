@@ -23,6 +23,6 @@ COPY contracts/src/ contracts/src/
 # The committed local artifacts were compiled separately (each source has ID 0).
 # Keep that compilation unit boundary: exported bytecode includes source maps.
 RUN cd contracts && for source in src/*.sol; do forge build "$source" || exit 1; done
-COPY scripts/export-contracts.py scripts/export-contracts.py
-RUN python3 scripts/export-contracts.py
+COPY helpers/export-contracts.py helpers/export-contracts.py
+RUN python3 helpers/export-contracts.py
 ENTRYPOINT ["tar", "-C", "/build/static_files/contracts", "-cf", "-", "."]

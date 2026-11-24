@@ -84,7 +84,7 @@ Clone this repository and run these commands from its directory:
 ```sh
 kurtosis engine start
 kurtosis run --enclave avalanche . --args-file examples/poa.yml
-bash scripts/endpoints.sh avalanche   # RPC URLs, explorers, and Grafana on this machine
+bash helpers/endpoints.sh avalanche   # RPC URLs, explorers, and Grafana on this machine
 ```
 
 Choose an example or supply your own arguments file:
@@ -143,15 +143,15 @@ Grafana opens on an overview of the devnet. Further dashboards cover one L1, the
 
 ## Explore
 
-By default, the package runs a [Blockscout](https://github.com/blockscout/blockscout) explorer for the C-Chain and for each L1. `bash scripts/endpoints.sh avalanche` prints the address of each one; `kurtosis port print avalanche c-chain-explorer http` prints the C-Chain explorer alone, and `l1-<n>-explorer` the explorer of L1 `n`. The P-Chain and the X-Chain are not EVM chains and have no explorer. See the [explorer guide](docs/explorer.md) for what the explorer shows, what it changes on the nodes, and its limits.
+By default, the package runs a [Blockscout](https://github.com/blockscout/blockscout) explorer for the C-Chain and for each L1. `bash helpers/endpoints.sh avalanche` prints the address of each one; `kurtosis port print avalanche c-chain-explorer http` prints the C-Chain explorer alone, and `l1-<n>-explorer` the explorer of L1 `n`. The P-Chain and the X-Chain are not EVM chains and have no explorer. See the [explorer guide](docs/explorer.md) for what the explorer shows, what it changes on the nodes, and its limits.
 
 ## Endpoints and accounts
 
 Kurtosis publishes every port on a random port of this machine, chosen anew in each deployment, so that several devnets can run side by side (ADR 0019). This script prints the URL of each chain on this machine, with each L1's blockchain ID, the explorers, and Grafana:
 
 ```sh
-bash scripts/endpoints.sh avalanche          # a table
-bash scripts/endpoints.sh avalanche --json   # the same as JSON, for scripts
+bash helpers/endpoints.sh avalanche          # a table
+bash helpers/endpoints.sh avalanche --json   # the same as JSON, for scripts
 ```
 
 It joins the deployment manifest with `kurtosis port print`. To build a URL by hand, take the address of a node and add the path of a chain:

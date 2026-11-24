@@ -10,7 +10,7 @@ A devnet must start the same way next month. Tags move, and the contracts decide
 
 - Every image in `constants.IMAGES` is pinned by digest. A comment gives the version.
 - `tools/Dockerfile` builds `lab` against the AvalancheGo commit of the node images. Its base images are pinned by digest.
-- The contract artifacts in `static_files/contracts/` are committed, with their SHA-256 hashes in `hashes.json`. `scripts/check-contracts.sh` rebuilds them in a pinned Foundry image from pinned sources and compares the result.
+- The contract artifacts in `static_files/contracts/` are committed, with their SHA-256 hashes in `hashes.json`. `helpers/check-contracts.sh` rebuilds them in a pinned Foundry image from pinned sources and compares the result.
 - The `images` argument overrides any image for a test of another version.
 
 ## Consequences

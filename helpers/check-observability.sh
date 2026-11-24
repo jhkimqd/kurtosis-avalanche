@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Check the observability stack of a running devnet from the outside:
 #
-#   bash scripts/check-observability.sh <enclave>
+#   bash helpers/check-observability.sh <enclave>
 #
 # The package starts the stack but does not test it. This script checks, for
 # each part that the arguments of the devnet enabled:
@@ -10,7 +10,7 @@
 #   2. Prometheus has every node, relayer, and signature aggregator, all up.
 #   3. Loki has the log lines of every node, with a level and with the time
 #      that the line itself states.
-#   4. Every dashboard query returns data. scripts/gen-dashboards.py lists the
+#   4. Every dashboard query returns data. helpers/gen-dashboards.py lists the
 #      queries; one that can be empty on a healthy devnet is left out.
 #   5. Grafana is healthy, reaches its datasources, and has every dashboard.
 #
@@ -96,7 +96,7 @@ for ((i = 0; i < l1_count; i++)); do
 done
 
 # The dashboard queries that must return data on this devnet.
-python3 scripts/gen-dashboards.py --queries >"$work/queries.json"
+python3 helpers/gen-dashboards.py --queries >"$work/queries.json"
 # queries <datasource>: one compact JSON object per line.
 queries() {
     jq -c --arg datasource "$1" --argjson bridge "$bridge" \

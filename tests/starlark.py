@@ -2,7 +2,7 @@
 
 The modules stay within the syntax that Starlark and Python share, so `exec`
 can run their logic: parsing, validation, sizing, and plan construction against
-a fake `plan`. scripts/check-package.sh covers the real Kurtosis interpreter.
+a fake `plan`. helpers/check-package.sh covers the real Kurtosis interpreter.
 """
 
 import ast

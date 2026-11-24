@@ -1,7 +1,7 @@
 """Exercise the developer script without requiring Docker in unit tests.
 
 The fake Docker command supplies real committed artifacts at the container boundary;
-run scripts/check-contracts.sh itself to verify the pinned compiler build.
+run helpers/check-contracts.sh itself to verify the pinned compiler build.
 """
 import hashlib
 import os
@@ -21,7 +21,7 @@ class ContractBuildTest(unittest.TestCase):
         self.work = pathlib.Path(self.temporary.name)
         self.root = self.work / "checkout"
         for relative in (
-            "scripts/check-contracts.sh", "scripts/export-contracts.py",
+            "helpers/check-contracts.sh", "helpers/export-contracts.py",
             "contracts/Dockerfile", "contracts/foundry.toml",
         ):
             target = self.root / relative
@@ -47,7 +47,7 @@ if args[0] == "build":
     assert not (context / ".build").exists()
     assert not (context / "contracts/out").exists()
     assert (context / "contracts/src/CashToken.sol").is_file()
-    assert (context / "scripts/export-contracts.py").is_file()
+    assert (context / "helpers/export-contracts.py").is_file()
     pathlib.Path(args[args.index("--iidfile") + 1]).write_text("sha256:test-image")
 elif args[0] == "run":
     with tarfile.open(fileobj=sys.stdout.buffer, mode="w|") as archive:
@@ -64,7 +64,7 @@ else:
                 for path in self.root.rglob("*") if path.is_file()}
 
     def run_script(self, *arguments):
-        return subprocess.run(["bash", str(self.root / "scripts/check-contracts.sh"), *arguments],
+        return subprocess.run(["bash", str(self.root / "helpers/check-contracts.sh"), *arguments],
                               env=self.environment, cwd=self.work, capture_output=True, text=True)
 
     def test_default_check_builds_in_isolation_without_writing_checkout(self):

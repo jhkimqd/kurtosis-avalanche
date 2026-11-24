@@ -8,7 +8,7 @@ import unittest
 import starlark
 
 ROOT = starlark.ROOT
-spec = importlib.util.spec_from_file_location("gen_dashboards", ROOT / "scripts/gen-dashboards.py")
+spec = importlib.util.spec_from_file_location("gen_dashboards", ROOT / "helpers/gen-dashboards.py")
 generator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(generator)
 
@@ -35,14 +35,14 @@ class DashboardsTest(unittest.TestCase):
         self.assertEqual(
             sorted(str(file.relative_to(directory)) for file in directory.rglob("*.json")),
             sorted(self.boards),
-            "run python3 scripts/gen-dashboards.py",
+            "run python3 helpers/gen-dashboards.py",
         )
         for path, board in self.boards.items():
             with self.subTest(dashboard=path):
                 self.assertEqual(
                     json.loads((directory / path).read_text()),
                     board.json(),
-                    "run python3 scripts/gen-dashboards.py",
+                    "run python3 helpers/gen-dashboards.py",
                 )
 
     def test_every_dashboard_can_be_found_and_linked(self):

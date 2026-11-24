@@ -1,4 +1,4 @@
-"""scripts/check-observability.sh: what it asks, and when it fails."""
+"""helpers/check-observability.sh: what it asks, and when it fails."""
 
 import json
 import os
@@ -111,7 +111,7 @@ class ObservabilityCheckTest(unittest.TestCase):
             environment = dict(os.environ, PATH="{}:{}".format(binaries, os.environ["PATH"]),
                                TEST_STATE=str(root), TEST_FAULT=fault, CHECK_TIMEOUT="0")
             result = subprocess.run(
-                ["bash", str(ROOT / "scripts/check-observability.sh"), "test-enclave"],
+                ["bash", str(ROOT / "helpers/check-observability.sh"), "test-enclave"],
                 capture_output=True, text=True, env=environment, timeout=120,
             )
             calls = (root / "calls").read_text() if (root / "calls").exists() else ""
@@ -177,7 +177,7 @@ class ObservabilityCheckTest(unittest.TestCase):
             (binaries / "kurtosis").write_text("#!/bin/sh\nexit 1\n")
             (binaries / "kurtosis").chmod(0o755)
             result = subprocess.run(
-                ["bash", str(ROOT / "scripts/check-observability.sh"), "missing"],
+                ["bash", str(ROOT / "helpers/check-observability.sh"), "missing"],
                 capture_output=True, text=True,
                 env=dict(os.environ, PATH="{}:{}".format(binaries, os.environ["PATH"])),
             )

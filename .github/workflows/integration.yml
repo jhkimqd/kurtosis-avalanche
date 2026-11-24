@@ -52,7 +52,7 @@ jobs:
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
           df -h /
       - uses: ./.github/actions/setup-kurtosis
-      - run: bash scripts/build.sh
+      - run: bash helpers/build.sh
       # Use the system Python that owns the apt-installed PyYAML package.
       - run: /usr/bin/python3 -m unittest discover -s tests -v
       - name: Deploy devnet
@@ -64,10 +64,10 @@ jobs:
         # of one deployment onto another.
         run: kurtosis run --enclave "$ENCLAVE" . --args-file "$ARGS_FILE" --main-file "$MAIN_FILE" 2>&1 | tee artifacts/integration.log
       # Check the network from outside the enclave, with independent tools.
-      - run: bash scripts/check-devnet.sh "$ENCLAVE" 2>&1 | tee artifacts/check-devnet.log
+      - run: bash helpers/check-devnet.sh "$ENCLAVE" 2>&1 | tee artifacts/check-devnet.log
       # Check that metrics and logs arrive and that every dashboard has data.
       # The script succeeds at once for a devnet without the stack.
-      - run: bash scripts/check-observability.sh "$ENCLAVE" 2>&1 | tee artifacts/check-observability.log
+      - run: bash helpers/check-observability.sh "$ENCLAVE" 2>&1 | tee artifacts/check-observability.log
       - name: Collect interchain delivery proof
         if: ${{ always() && matrix.main_file == 'nightly.star' && steps.deploy.outcome == 'success' }}
         run: kurtosis files download "$ENCLAVE" nightly-results artifacts/nightly-results

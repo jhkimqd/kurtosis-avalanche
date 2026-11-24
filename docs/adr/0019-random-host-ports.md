@@ -18,7 +18,7 @@ The Blockscout web app (frontend v2.3.5) needs the address of its API before it 
 
 - Remove the arguments `rpc_port` and `explorer_port`. No service names a host port; Kurtosis picks each one.
 - The manifest and `/opt/networks` hold only the addresses inside the enclave. The manifest names the service and port ID of each explorer instead of a URL.
-- `scripts/endpoints.sh <enclave>` joins the manifest with `kurtosis port print` and prints the host addresses: the RPC and WebSocket URL of each chain, each explorer, and Grafana; `--json` prints them as one object. `scripts/check-devnet.sh` reads its host addresses from that script.
+- `helpers/endpoints.sh <enclave>` joins the manifest with `kurtosis port print` and prints the host addresses: the RPC and WebSocket URL of each chain, each explorer, and Grafana; `--json` prints them as one object. `helpers/check-devnet.sh` reads its host addresses from that script.
 - Each explorer gets a third service, `<chain>-explorer`: nginx (pinned in `IMAGES["nginx"]`) that sends `/api` and `/socket` to `<chain>-explorer-api` and every other path to the web app, now `<chain>-explorer-web`. The browser opens one address.
 - The web app starts with the addresses inside the enclave, which its server uses. Its command adds four lines to `/assets/envs.js` that replace the host and port of the app and of the API with `window.location`, so the browser calls the API through the proxy at the address of the page.
 - The web app's fonts are an empty `data:` stylesheet, so it loads nothing from Google Fonts and needs no address of its own.
@@ -28,10 +28,10 @@ This supersedes ADR 0015, and the fixed host ports of ADR 0014 (`explorer_port`)
 ## Consequences
 
 - Any number of devnets run side by side, each in its own enclave, with no argument to change.
-- An address changes with every deployment, and can change when its service restarts. A wallet or a script reads it again from `scripts/endpoints.sh`.
+- An address changes with every deployment, and can change when its service restarts. A wallet or a script reads it again from `helpers/endpoints.sh`.
 - Each explorer runs one more container, limited to `EXPLORER_PROXY_MAX_MEMORY` (64 MB).
-- A user who opens `<chain>-explorer-web` directly sees pages without data, because the web app looks for the API at the address of the page. The documentation and `scripts/endpoints.sh` name only the proxy.
-- `/assets/envs.js` keeps its upstream format. A Blockscout frontend that stops reading `window.__envs` breaks the explorers; `scripts/check-devnet.sh` checks the file and the WebSocket through the proxy.
+- A user who opens `<chain>-explorer-web` directly sees pages without data, because the web app looks for the API at the address of the page. The documentation and `helpers/endpoints.sh` name only the proxy.
+- `/assets/envs.js` keeps its upstream format. A Blockscout frontend that stops reading `window.__envs` breaks the explorers; `helpers/check-devnet.sh` checks the file and the WebSocket through the proxy.
 
 ## Alternatives
 
