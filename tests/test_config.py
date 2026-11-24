@@ -234,6 +234,34 @@ class NodeConfigTest(unittest.TestCase):
         # Untouched package defaults remain.
         self.assertEqual(l1["snow-preference-quorum-size"], 2)
 
+    def test_mainnet_fees_apply_to_every_node(self):
+        # MainnetParams.TxFeeConfig in genesis/genesis_mainnet.go of the pinned AvalancheGo.
+        mainnet = {
+            "validator-fees-min-price": 512,
+            "validator-fees-excess-conversion-constant": 1246488515,
+            "create-asset-tx-fee": 10000000,
+        }
+        args = parse({})
+        for section in ("primary_network", "l1"):
+            for flag, value in mainnet.items():
+                self.assertEqual(args[section]["node_config"][flag], value)
+
+    def test_every_package_value_can_be_overridden(self):
+        # The Mainnet values are defaults, not rules: any value is accepted,
+        # also one that differs between the two sections of nodes.
+        args = parse(
+            {
+                "node_config": {"validator-fees-min-price": 1},
+                "l1": {"node_config": {"validator-fees-min-price": 7, "create-asset-tx-fee": 0}},
+                "primary_network": {"c_chain_config": {"gas-target": 15000000, "min-delay-target": 0}},
+            }
+        )
+        self.assertEqual(args["primary_network"]["node_config"]["validator-fees-min-price"], 1)
+        self.assertEqual(args["l1"]["node_config"]["validator-fees-min-price"], 7)
+        self.assertEqual(args["l1"]["node_config"]["create-asset-tx-fee"], 0)
+        c_chain = args["primary_network"]["c_chain_config"]
+        self.assertEqual((c_chain["gas-target"], c_chain["min-delay-target"]), (15000000, 0))
+
     def test_package_defaults_do_not_include_managed_flags(self):
         self.assertFalse(
             set(input_parser.DEFAULT_NODE_CONFIG) & set(sanity_check.MANAGED_NODE_FLAGS)

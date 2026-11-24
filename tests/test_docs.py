@@ -96,6 +96,30 @@ class ReferenceFilesTest(unittest.TestCase):
         self.assertEqual([balance], [a["balance"] for a in base["alloc"].values()])
 
 
+class NetworkParametersDocTest(unittest.TestCase):
+    """The tables of docs/network-parameters.md show the package values."""
+
+    text = (ROOT / "docs/network-parameters.md").read_text()
+
+    def cell(self, row):
+        """Returns the first value cell of the table row that starts with `row`."""
+        match = re.search(r"^\| {} \| ([^|]+) \|".format(re.escape(row)), self.text, re.M)
+        self.assertIsNotNone(match, row)
+        return match[1].strip()
+
+    def test_p_chain_table(self):
+        flags = input_parser.DEFAULT_NODE_CONFIG
+        self.assertEqual(
+            self.cell("L1 validator fee, minimum price"),
+            "{} nAVAX/s".format(flags["validator-fees-min-price"]),
+        )
+        self.assertEqual(
+            self.cell("X-Chain CreateAssetTx fee"),
+            "{:g} AVAX".format(flags["create-asset-tx-fee"] / 1e9),
+        )
+
+
+
 class RepositoryDocsTest(unittest.TestCase):
     """The prose documents name files and versions that exist."""
 

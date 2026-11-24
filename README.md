@@ -129,6 +129,8 @@ The remaining arguments configure AvalancheGo and Subnet-EVM. The reference file
 | `primary_network.c_chain_config` | [C-Chain settings](docs/config/c-chain.yml) |
 | `primary_network.p_chain_config`, `primary_network.x_chain_config` | [P-Chain and X-Chain settings](docs/config/p-x-chain.yml) |
 
+See [network parameters](docs/network-parameters.md) for the fees, block limits, and staking values of the devnet next to those of Mainnet and Fuji, and for the values that a small devnet changes on purpose.
+
 Unknown arguments and options managed by the package, such as ports and key paths, are rejected. See the [L1 lifecycle guide](docs/l1-lifecycle.md) for deployment details.
 
 ## Observe

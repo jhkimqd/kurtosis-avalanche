@@ -98,6 +98,22 @@ DEFAULT_NODE_CONFIG = {
     "snow-sample-size": 3,
     "snow-preference-quorum-size": 2,
     "snow-confidence-quorum-size": 2,
+    # Fees of Avalanche Mainnet (MainnetParams in genesis/genesis_mainnet.go).
+    # For any other network ID AvalancheGo uses LocalParams, which are lower.
+    # Every node checks P-Chain blocks against these values, the L1 nodes
+    # included. To change one for the whole network, set it in the top-level
+    # `node_config`; a value in only one section makes the other nodes reject
+    # its P-Chain blocks.
+    #
+    # An L1 validator pays the P-Chain a continuous fee from its balance: at
+    # least 512 nAVAX per second (about 1.33 AVAX per 30 days; LocalParams:
+    # 1 nAVAX). The price rises while more than 10,000 L1 validators are
+    # active. At the capacity of 20,000 it doubles once a day (LocalParams:
+    # once a minute).
+    "validator-fees-min-price": 512,
+    "validator-fees-excess-conversion-constant": 1246488515,
+    # An X-Chain CreateAssetTx costs 0.01 AVAX, in nAVAX (LocalParams: 0.001).
+    "create-asset-tx-fee": 10000000,
 }
 
 

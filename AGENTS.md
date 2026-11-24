@@ -64,6 +64,7 @@ Run a live deployment before you report a change to `src/`, `tools/`, or `static
 | `.github/configs/` | Arguments files for CI coverage only. |
 | `docs/config/` | Reference of the AvalancheGo options. |
 | `docs/l1-lifecycle.md` | How the package activates an L1, step by step, and how to check it. |
+| `docs/network-parameters.md` | Fees, block limits, and staking values of the devnet next to Mainnet and Fuji, with their sources. |
 | `docs/observability.md` | The observability stack: dashboards, labels, and limits. |
 | `docs/explorer.md` | The block explorers: addresses, node changes, the P-Chain and X-Chain APIs, and limits. |
 | `docs/adr/` | Architecture decision records. |
