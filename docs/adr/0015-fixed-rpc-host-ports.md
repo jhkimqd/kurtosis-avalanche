@@ -1,6 +1,6 @@
 # 0015. Publish the first node of each chain on a fixed host port
 
-Status: Accepted
+Status: Superseded by [0019](0019-random-host-ports.md)
 
 ## Context
 

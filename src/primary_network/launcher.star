@@ -20,8 +20,6 @@ def launch(plan, args, network):
         rpc_url: base URL of the first validator; the API paths below extend it.
         p_chain_rpc_url, x_chain_rpc_url, c_chain_rpc_url: chain API endpoints.
         c_chain_ws_url: WebSocket endpoint of the C-Chain, for subscriptions.
-        host: dict of the same URLs on this machine, through the fixed port
-            of the first validator, or None when `rpc_port` is 0.
     """
     nodes = []
     bootstrap_peer = None
@@ -34,8 +32,6 @@ def launch(plan, args, network):
             role=constants.NODE_ROLE.primary,
             index=index,
             bootstrap_peer=bootstrap_peer,
-            # The first validator serves the P-, X-, and C-Chain on a fixed port.
-            host_port=node_launcher.host_rpc_port(args, 0) if index == 0 else None,
         )
         nodes.append(node)
         # The first validator starts alone; every later node syncs from it.
@@ -74,11 +70,6 @@ def launch(plan, args, network):
         x_chain_rpc_url=urls["x_chain_rpc_url"],
         c_chain_rpc_url=urls["c_chain_rpc_url"],
         c_chain_ws_url=urls["c_chain_ws_url"],
-        host=(
-            _chain_urls(nodes[0].host_rpc_url, nodes[0].host_ws_url)
-            if nodes[0].host_rpc_url
-            else None
-        ),
     )
 
 

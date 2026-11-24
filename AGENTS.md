@@ -10,7 +10,7 @@ This file guides coding agents and human contributors. Read it before you change
 kurtosis engine start
 kurtosis run --enclave avalanche . --args-file examples/poa.yml   # 4 nodes and 2 explorers, about 1.5 minutes; or:
 kurtosis run --enclave avalanche . --args-file examples/pos.yml   # 5 staked validators, bridge, Grafana, explorers
-kurtosis enclave inspect avalanche                                # services and ports
+bash scripts/endpoints.sh avalanche                               # RPC URLs, explorers, Grafana on this machine
 kurtosis enclave rm -f avalanche                                  # remove the network
 ```
 
@@ -29,6 +29,7 @@ bash scripts/build.sh                         # build the tools image (released 
 python3 scripts/gen-config-reference.py       # regenerate node.yml, l1-chain.yml, c-chain.yml
 python3 scripts/gen-dashboards.py             # regenerate the Grafana dashboards
 bash scripts/run.sh examples/poa.yml          # live run in a new enclave
+bash scripts/endpoints.sh <enclave>           # its addresses on this machine
 bash scripts/check-devnet.sh <enclave>        # check a running devnet from the outside
 bash scripts/check-observability.sh <enclave> # check its metrics, logs, and dashboards
 ```
@@ -53,7 +54,7 @@ Run a live deployment before you report a change to `src/`, `tools/`, or `static
 | `src/l1/launcher.star` | L1 lifecycle (ACP-77) and PoS bootstrap sizing. |
 | `src/l1/signature_aggregator.star`, `src/l1/bridge.star` | Per-L1 support services. |
 | `src/observability/launcher.star` | The observability stack. One file per service: `alloy.star` (collector), `prometheus.star` (metrics store), `loki.star` (log store), `grafana.star` (dashboards). |
-| `src/explorer/launcher.star` | The optional Blockscout explorers and their PostgreSQL database. |
+| `src/explorer/launcher.star` | The optional Blockscout explorers, their nginx proxies, and their PostgreSQL database. |
 | `src/tools/launcher.star` | The tools service, the helpers that run the setup scripts in it (`run_script`), and the run of `describe-networks.sh`. |
 | `tools/` | The Dockerfile of the tools image: AvalancheGo, `platform-cli`, `cast`, curl, and jq. No code of the package (ADR 0018). |
 | `static_files/scripts/` | The setup scripts that run in the tools service: `network.sh` (identities, genesis), `l1.sh` (create, convert, ValidatorManager), `staking.sh` (PoA to PoS), `bridge.sh`, `checks.sh`, `icm.sh` (nightly), `describe-networks.sh`; shared helpers in `lib.sh`. |
@@ -66,7 +67,7 @@ Run a live deployment before you report a change to `src/`, `tools/`, or `static
 | `docs/observability.md` | The observability stack: dashboards, labels, and limits. |
 | `docs/explorer.md` | The block explorers: addresses, node changes, the P-Chain and X-Chain APIs, and limits. |
 | `docs/adr/` | Architecture decision records. |
-| `scripts/` | `run.sh` (deploy), `check-devnet.sh` (check a running devnet), `check-observability.sh` (check its observability stack), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`, `gen-dashboards.py`. |
+| `scripts/` | `run.sh` (deploy), `endpoints.sh` (print the addresses of a running devnet), `check-devnet.sh` (check a running devnet), `check-observability.sh` (check its observability stack), `check-package.sh` (lint and plan), `check-alloy.sh` (load the Alloy pipelines), `build.sh`, `check-contracts.sh`, `gen-config-reference.py`, `gen-dashboards.py`. |
 | `tests/` | Python unit tests. `tests/starlark.py` loads the Starlark modules in Python. |
 
 ## Where to make a change
@@ -82,6 +83,7 @@ Run a live deployment before you report a change to `src/`, `tools/`, or `static
 | Add a service | `src/<name>/launcher.star` with `launch(plan, args, ...)` → `main.star` or `src/l1/launcher.star` → image in `IMAGES` → the planning function of the launcher (`planned_nodes`, `planned`), if the service serves metrics |
 | Add or change a dashboard panel | `scripts/gen-dashboards.py` → `python3 scripts/gen-dashboards.py` → commit the JSON → live run → `bash scripts/check-observability.sh <enclave>`, and look at the panel with data |
 | Change what Alloy collects | `static_files/observability/alloy/` → the target files in `src/observability/alloy.star` → `bash scripts/check-alloy.sh` → live run |
+| Bump an explorer image (`blockscout`, `blockscout_frontend`, `postgres`, `nginx`) | `IMAGES` in `constants.star` (digest of the multi-platform index) → the version in `README.md`, `examples/pos.yml`, and `docs/explorer.md` → live run → `bash scripts/check-devnet.sh <enclave>` |
 | Bump an observability image | `IMAGES` in `constants.star` (digest of the multi-platform index) → the version in `README.md` and `examples/pos.yml` → `bash scripts/check-alloy.sh` → live run of `examples/pos.yml` |
 | Change a contract artifact | `contracts/` → `bash scripts/check-contracts.sh refresh` → review the diff |
 | Add a CI-only network | `.github/configs/<name>.yml` → the matrix in `.github/workflows/integration.yml` |
@@ -99,12 +101,12 @@ Run a live deployment before you report a change to `src/`, `tools/`, or `static
 | Funded account (EWOQ) | `0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC` |
 | EWOQ private key | `0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027` (public; devnet only) |
 | ValidatorManager on every L1 | `0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25` |
-| RPC on the host (`rpc_port`) | P-, X-, C-Chain at http://127.0.0.1:29650 (`/ext/bc/C/rpc`), L1 `n` at port `29651 + n` (`/ext/bc/<blockchain-id>/rpc`) |
+| RPC on the host | A random port per service (ADR 0019): `bash scripts/endpoints.sh <enclave>`. P-, X-, C-Chain on `primary-0` (`/ext/bc/C/rpc`), L1 `n` on `l1-<n>-rpc-0` (`/ext/bc/<blockchain-id>/rpc`) |
 | Devnet description | `/opt/networks/<network>/` in the `tools` service (`primary-network`, `l1-<i>`), also the artifact `network-description`; written by `static_files/scripts/describe-networks.sh` |
 | Grafana | `kurtosis port print <enclave> grafana http`; no login to look, `admin` / `admin` to edit |
-| Explorers (default; `explorer: false` turns them off) | C-Chain at http://localhost:28000, L1 `n` at port `28000 + 2 × (n + 1)`; API on the next port |
+| Explorers (default; `explorer: false` turns them off) | `c-chain-explorer`, `l1-<n>-explorer` (nginx in front of the web app and the API); `bash scripts/endpoints.sh <enclave>` prints the addresses; API under `/api/v2` |
 
-Service names: `primary-<n>`, `l1-<i>-validator-<n>`, `l1-<i>-rpc-<n>`, `l1-<i>-bootstrap-<n>` (temporary, PoS setup only), `l1-<i>-aggregator`, `l1-<i>-relayer`, `alloy`, `prometheus`, `loki`, `grafana`, `explorer-db`, `c-chain-explorer-api`, `c-chain-explorer`, `l1-<i>-explorer-api`, `l1-<i>-explorer`, `tools`. All indexes start at 0.
+Service names: `primary-<n>`, `l1-<i>-validator-<n>`, `l1-<i>-rpc-<n>`, `l1-<i>-bootstrap-<n>` (temporary, PoS setup only), `l1-<i>-aggregator`, `l1-<i>-relayer`, `alloy`, `prometheus`, `loki`, `grafana`, `explorer-db`, `c-chain-explorer-api`, `c-chain-explorer-web`, `c-chain-explorer`, `l1-<i>-explorer-api`, `l1-<i>-explorer-web`, `l1-<i>-explorer`, `tools`. All indexes start at 0.
 
 Labels on every metric and log line of a node: `job` (`avalanche`), `node` (the service name), `role`, and `l1` (L1 nodes only). Logs add `logger` (the log file: `main`, `P`, `X`, `C`, or a blockchain ID) and `level`.
 

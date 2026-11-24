@@ -1,6 +1,6 @@
 # 0014. Add an optional Blockscout explorer for each EVM chain, pinned to its newest public GPL images
 
-Status: Accepted. Its default (`explorer: false`) is superseded by [0017](0017-explorer-by-default.md).
+Status: Accepted. Its default (`explorer: false`) is superseded by [0017](0017-explorer-by-default.md), and its fixed host ports (`explorer_port`) by [0019](0019-random-host-ports.md).
 
 ## Context
 

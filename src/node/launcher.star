@@ -18,9 +18,7 @@ DATA_PATH = "/data"  # database, and the logs when they are not collected
 LOGS_PATH = "/logs"  # log files of every node, when they are collected
 
 
-def launch(
-    plan, args, network, name, role, index, bootstrap_peer=None, l1=None, host_port=None
-):
+def launch(plan, args, network, name, role, index, bootstrap_peer=None, l1=None):
     """Starts one AvalancheGo node and returns its context.
 
     Args:
@@ -33,15 +31,12 @@ def launch(
             or None for the first node of the network.
         l1: struct(subnet_id, blockchain_id, config_artifact) of the L1 the
             node tracks, or None for a Primary Network validator.
-        host_port: fixed port on this machine for the node's API, from
-            `host_rpc_port`, or None for a random port that Kurtosis picks.
     Returns:
-        struct(name, role, ip_address, rpc_url, ws_url, host_rpc_url,
-        host_ws_url). `rpc_url` and `ws_url` are the HTTP and WebSocket bases
-        of the node's API inside the enclave; a chain path such as
-        `/ext/bc/C/rpc` or `/ext/bc/C/ws` extends them. `host_rpc_url` and
-        `host_ws_url` are the same bases on this machine, or None without a
-        `host_port`.
+        struct(name, role, ip_address, rpc_url, ws_url). `rpc_url` and
+        `ws_url` are the HTTP and WebSocket bases of the node's API inside the
+        enclave; a chain path such as `/ext/bc/C/rpc` or `/ext/bc/C/ws` extends
+        them. Kurtosis publishes the API port on a random port of this machine;
+        `kurtosis port print <enclave> <name> rpc` prints it.
     """
     is_primary = role == constants.NODE_ROLE.primary
     is_bootstrap = role == constants.NODE_ROLE.bootstrap
@@ -129,11 +124,6 @@ def launch(
                     number=constants.NODE_STAKING_PORT_NUMBER, wait="2m"
                 ),
             },
-            public_ports=(
-                {constants.NODE_HTTP_PORT_ID: PortSpec(number=host_port)}
-                if host_port
-                else {}
-            ),
             files=files,
             entrypoint=["/avalanchego/build/avalanchego"],
             cmd=[
@@ -160,26 +150,7 @@ def launch(
         ip_address=service.ip_address,
         rpc_url="http://{}:{}".format(name, constants.NODE_HTTP_PORT_NUMBER),
         ws_url="ws://{}:{}".format(name, constants.NODE_HTTP_PORT_NUMBER),
-        host_rpc_url="http://127.0.0.1:{}".format(host_port) if host_port else None,
-        host_ws_url="ws://127.0.0.1:{}".format(host_port) if host_port else None,
     )
-
-
-def host_rpc_port(args, chain_index):
-    """Returns the fixed port on this machine of one chain's first node.
-
-    Kurtosis publishes the API port of a node on a random port of this
-    machine. The first node of each chain uses a fixed port instead, so that
-    its RPC URL stays the same from one deployment to the next. Chain number i
-    (the Primary Network is 0, L1 number n is n + 1) takes the port
-    `rpc_port + i`.
-
-    Returns:
-        The port, or None when `rpc_port` is 0 and Kurtosis picks every port.
-    """
-    if args["rpc_port"] == 0:
-        return None
-    return args["rpc_port"] + chain_index
 
 
 def log_dir(name):

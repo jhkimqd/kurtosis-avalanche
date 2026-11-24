@@ -52,6 +52,7 @@ elif name == 'curl':
         'platform.getHeight': {'height': 1},
         'avm.getBalance': {'balance': 1},
         'platform.getBlockchains': {'blockchains': [{'id': 'X'}, {'id': 'C'}]},
+        'eth_chainId': hex(88888),
     }[method]
     print(json.dumps({'result': result}))
 elif name == 'docker':
@@ -94,11 +95,12 @@ class DevnetCheckTest(unittest.TestCase):
             work = Path(directory)
             for folder in ("scripts", "contracts", "static_files/contracts", "bin"):
                 (work / folder).mkdir(parents=True)
-            for name in ("scripts/check-devnet.sh", "contracts/Dockerfile"):
+            for name in ("scripts/check-devnet.sh", "scripts/endpoints.sh", "contracts/Dockerfile"):
                 shutil.copyfile(ROOT / name, work / name)
             (work / "static_files/contracts/CashToken.json").write_text(json.dumps({"bytecode": {"object": "0x00"}}))
             manifest = {
                 "primary_network": {"network_id": 88888, "c_chain_id": 88888,
+                                    "rpc_url": "http://primary-0:9650",
                                     "c_chain_rpc_url": "http://primary-0:9650/ext/bc/C/rpc"},
                 "args": {"primary_network": {"validator_count": 2}, "l1": {"validator_count": 1, "rpc_count": 1}},
                 "l1s": [],
@@ -122,6 +124,8 @@ class DevnetCheckTest(unittest.TestCase):
         result, calls = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("ok    chain ID: 88888", result.stdout)
+        # The host address comes from the published port, not the manifest.
+        self.assertIn("ok    EVM chain ID at http://127.0.0.1:9650/ext/bc/C/rpc: 88888", result.stdout)
         self.assertIn("ok    blockchains in /opt/networks/*/network.json", result.stdout)
         self.assertIn("Pulling Foundry image", result.stderr)
         self.assertLess(calls.index("docker pull "), calls.index("docker run "))

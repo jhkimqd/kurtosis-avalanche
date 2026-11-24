@@ -2,7 +2,7 @@
 #
 #   kurtosis run --enclave avalanche . --args-file examples/pos.yml
 #
-# It runs 9 nodes and 7 support services, and takes about 4 minutes:
+# It runs 9 nodes and 14 support services, and takes about 5 minutes:
 #
 #   primary-0 .. primary-2             Primary Network validators (P-, X-, C-Chain)
 #   l1-0-validator-0 .. -4             L1 validators, each with a stake
@@ -11,7 +11,14 @@
 #   alloy                              Collects metrics and logs
 #   prometheus, loki                   Store the metrics and the logs
 #   grafana                            Dashboards for both
+#   explorer-db, c-chain-explorer*,    Block explorers of the C-Chain and the L1
+#     l1-0-explorer*
 #   tools                              Signs the setup transactions
+#
+# Kurtosis publishes every port on a random port of this machine. This
+# command prints the RPC URL of each chain, the explorers, and Grafana:
+#
+#   bash scripts/endpoints.sh <enclave>
 #
 # During setup it also runs 4 temporary nodes, l1-0-bootstrap-0 .. -3, and
 # removes them (see "Staking" below). One minute of the run is a wait before
@@ -151,32 +158,16 @@ logs: true
 # No login is needed to look. docs/observability.md describes the dashboards.
 dashboards: true
 
-# Fixed port on this machine for the RPC endpoints, from 1024. The first
-# Primary Network validator takes this port for the P-, X-, and C-Chain:
-#   C-Chain  http://127.0.0.1:29650/ext/bc/C/rpc
-#   P-Chain  http://127.0.0.1:29650/ext/bc/P
-# The first RPC node of L1 n takes 29650 + 1 + n:
-#   L1 0     http://127.0.0.1:29651/ext/bc/<blockchain ID>/rpc
-# The other nodes get random ports (`kurtosis enclave inspect`). 0 gives every
-# node a random port; use it, or another value, to run two devnets at once.
-rpc_port: 29650
-
 # Block explorer. One Blockscout explorer for each EVM chain: the C-Chain and
 # every L1. Each indexes its chain from block 0, with internal transactions,
 # token transfers, and event logs. It adds a PostgreSQL database and, per
-# chain, an indexer and a web app: about 600 MB of memory per chain. The
-# P-Chain and the X-Chain are not EVM chains; no explorer covers them. With
-# `explorer: true` the nodes keep the state of every block, and the L1 nodes
-# serve the `debug_trace*` methods: docs/explorer.md. false turns the explorers
-# off and keeps the upstream pruning of old state.
+# chain, an indexer, a web app, and an nginx proxy that serves both on one
+# address: about 600 MB of memory per chain. scripts/endpoints.sh prints the
+# address of each explorer. The P-Chain and the X-Chain are not EVM chains; no
+# explorer covers them. With `explorer: true` the nodes keep the state of every
+# block, and the L1 nodes serve the `debug_trace*` methods: docs/explorer.md.
+# false turns the explorers off and keeps the upstream pruning of old state.
 explorer: true
-
-# First host port of the explorers, from 1024. Each explorer takes two ports
-# in a row, its web app then its API, so the last port is 28000 + 2 * (number
-# of L1s + 1) - 1, at most 65535. The C-Chain explorer opens at
-# http://localhost:28000, the explorer of L1 n at 28000 + 2 * (n + 1). Change
-# it to run two devnets with explorers at the same time.
-explorer_port: 28000
 
 # ── Images ───────────────────────────────────────────────────────────────────
 # Container images. Each default is pinned by digest in
@@ -193,4 +184,5 @@ explorer_port: 28000
 #   blockscout: ghcr.io/blockscout/blockscout:9.0.2
 #   blockscout_frontend: ghcr.io/blockscout/frontend:v2.3.5
 #   postgres: postgres:17.12-alpine
+#   nginx: nginx:1.30.6-alpine
 #   tools: avalanche-tools:local                   # Empty builds ./tools

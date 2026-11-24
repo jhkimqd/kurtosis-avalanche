@@ -8,20 +8,23 @@ The explorer is on by default. Turn it off in your arguments file, to save its m
 explorer: false
 ```
 
-ADR 0014 explains the choice of Blockscout and of its version, and ADR 0017 why it runs by default.
+ADR 0014 explains the choice of Blockscout and of its version, ADR 0017 why it runs by default, and ADR 0019 how it is published on this machine.
 
 ## Open an explorer
 
-The deployment output lists each explorer under `explorers`, with the address of its web app and of its API:
+Kurtosis publishes each explorer on a random port of this machine. This script prints the address of each explorer and of its API:
 
-| Chain | Web app | API |
-| --- | --- | --- |
-| C-Chain | http://localhost:28000 | http://localhost:28001/api/v2 |
-| L1 number n | http://localhost:28000 + 2 × (n + 1) | the next port |
+```sh
+bash scripts/endpoints.sh <enclave>
+```
 
-With two L1s, `l1-0` opens at port 28002 and `l1-1` at port 28004. Open the address in a browser on the machine that runs Kurtosis. The web app calls the API at `localhost`, so it does not work from another machine.
+The service `<chain>-explorer` is the address to open: `c-chain-explorer` for the C-Chain, `l1-<n>-explorer` for L1 number n.
 
-`explorer_port` sets the first port. Each explorer takes two ports in a row. To run a second devnet with explorers on the same machine, give it another `explorer_port`, for example 28100. A deployment fails when one of its ports is in use.
+```sh
+kurtosis port print <enclave> c-chain-explorer http   # for example http://127.0.0.1:61234
+```
+
+The API is on the same address, under `/api/v2`. The deployment manifest lists each explorer under `explorers`, with its service and port ID. Several devnets run side by side, each explorer on its own port.
 
 ## Services
 
@@ -29,7 +32,10 @@ With two L1s, `l1-0` opens at port 28002 and `l1-1` at port 28004. Open the addr
 | --- | --- | --- |
 | `explorer-db` | PostgreSQL 17 | Stores the index of every explorer, one database per chain. |
 | `c-chain-explorer-api`, `l1-<i>-explorer-api` | Blockscout 9.0.2 | Reads the chain from a node, writes the index, and serves the API. |
-| `c-chain-explorer`, `l1-<i>-explorer` | Blockscout frontend v2.3.5 | The web app. |
+| `c-chain-explorer-web`, `l1-<i>-explorer-web` | Blockscout frontend v2.3.5 | The web app. |
+| `c-chain-explorer`, `l1-<i>-explorer` | nginx 1.30.6 | The address to open. Sends `/api` and `/socket` to the API and every other path to the web app. |
+
+The web app runs in the browser and calls the API at the address of the page. Kurtosis picks that address after the web app starts, so the web app's command adds lines to `/assets/envs.js` that read it from the browser's location bar. Open the proxy, not the web app: on its own address, the web app finds no API.
 
 The C-Chain explorer reads `primary-0`. The explorer of an L1 reads its first RPC node, `l1-<i>-rpc-0`, which does not validate.
 
@@ -111,10 +117,11 @@ Measured on `examples/pos.yml` with `explorer: true`, after the deployment and `
 | Service | Memory used | Limit |
 | --- | --- | --- |
 | `<chain>-explorer-api` | 370 MB | 1 GB |
-| `<chain>-explorer` | 180 MB | 512 MB |
+| `<chain>-explorer-web` | 180 MB | 512 MB |
+| `<chain>-explorer` (nginx) | 12 MB | 64 MB |
 | `explorer-db`, for two chains | 250 MB | 384 MB + 128 MB per chain |
 
-Each chain adds about 600 MB. The three images take about 1.3 GB of disk.
+Each chain adds about 600 MB. The four images take about 1.4 GB of disk.
 
 ## Check the explorers
 
